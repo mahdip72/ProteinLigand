@@ -50,7 +50,7 @@ def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alph
         # Experimental: Ensure the smoothed pos weight is at least 100
         # smoothed_pos_weight = max(alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight, 100.0)
         # Experimental: Cap the smoothed positive weight at 50
-        smoothed_pos_weight = min(alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight, 50.0)
+        smoothed_pos_weight = min(alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight, 10.0)
 
     pos_weight_tensor = torch.as_tensor(smoothed_pos_weight, dtype=torch.float, device=device)
     pos_weight_tensor = pos_weight_tensor.clone().detach()
@@ -424,7 +424,7 @@ def main(dict_config, config_file_path):
     scaler = GradScaler()
     start_epoch = 0
 
-    # load_checkpoint_path = "./results/test/2025-03-02__20-26-03__ADP/checkpoints/checkpoint_epoch_7.pth"
+    # load_checkpoint_path = "./results/test/2025-03-03__12-38-27__ZN/checkpoints/checkpoint_epoch_24.pth"
     load_checkpoint_path = None
 
     if not load_checkpoint_path:

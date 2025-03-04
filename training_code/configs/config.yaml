@@ -1,9 +1,9 @@
 fix_seed: 0
-checkpoints_every: 1
+checkpoints_every: 4
 tensorboard_log: True
 tqdm_progress_bar: True
 result_path: ./results/test/
-data_type: ADP
+data_type: ZN
 
 model:
   model_name: facebook/esm2_t12_35M_UR50D
@@ -27,7 +27,7 @@ train_settings:
   grad_clip_norm: 1
   alpha: 0.9
   gamma: 1
-  label_smoothing: 0.0
+  label_smoothing: 0.1
   max_sequence_length: 768
 
 test_settings:

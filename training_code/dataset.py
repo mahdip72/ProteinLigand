@@ -209,6 +209,8 @@ def analyze_data(configs):
     # Dictionaries to store counts
     binding_counts = Counter()  # Counts of how often each amino acid binds
     total_counts = Counter()    # Counts of how often each amino acid appears
+    total_sequence_length = 0   # Sum of all sequence lengths
+    total_sequence_count = 0    # Number of sequences processed
 
     # Iterate over all datasets (train, valid, test)
     for seq_file, label_file in file_paths:
@@ -222,6 +224,10 @@ def analyze_data(configs):
                 if seq_id in labels and len(sequences[seq_id]) == len(labels[seq_id]):
                     sequence = sequences[seq_id]
                     label = labels[seq_id]  # "0001000100" (binary string)
+
+                    # Update sequence count and total length
+                    total_sequence_count += 1
+                    total_sequence_length += len(sequence)
 
                     # Count amino acids in the dataset
                     total_counts.update(sequence)
@@ -242,6 +248,9 @@ def analyze_data(configs):
     total_amino_acid_count = sum(total_counts.values())
     total_binding_proportion = total_binding_count / total_amino_acid_count if total_amino_acid_count > 0 else 0
 
+    # Calculate average sequence length
+    average_sequence_length = total_sequence_length / total_sequence_count if total_sequence_count > 0 else 0
+
     # Sort amino acids by binding proportion (highest proportion first)
     sorted_binding = sorted(binding_proportions.items(), key=lambda x: x[1], reverse=True)
 
@@ -254,7 +263,13 @@ def analyze_data(configs):
 
     print("\nTotal Binding Proportion (Overall Across All Amino Acids):")
     print(
-        f"{total_binding_count} binding sites out of {total_amino_acid_count} total residues ({total_binding_proportion:.4f})")
+        f"{total_binding_count} binding sites out of {total_amino_acid_count} total residues ({total_binding_proportion:.4f})"
+    )
+
+    print("\nAverage Sequence Length Across All Datasets:")
+    print(f"Total sequences: {total_sequence_count}")
+    print(f"Total sequence length: {total_sequence_length}")
+    print(f"Average sequence length: {average_sequence_length:.2f}")
 
     return sorted_binding
 
@@ -293,4 +308,4 @@ if __name__ == '__main__':
         print(f"Number of samples in test_loader: {len(test_loader.dataset)}")
         print(f"Number of batches in test_loader: {len(test_loader)}")
 
-    # analyze_data(configs)
+    analyze_data(configs)
