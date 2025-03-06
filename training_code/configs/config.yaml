@@ -1,13 +1,13 @@
 fix_seed: 0
-checkpoints_every: 4
+checkpoints_every: 12
 tensorboard_log: True
 tqdm_progress_bar: True
 result_path: ./results/test/
-data_type: ZN
+data_type: ADP
 
 model:
-  model_name: facebook/esm2_t12_35M_UR50D
-  hidden_size: 480
+  model_name: facebook/esm2_t33_650M_UR50D
+  hidden_size: 1280
   freeze_backbone: True
   freeze_embeddings: True
   freeze_backbone_layers: 10
@@ -21,7 +21,7 @@ train_settings:
   num_epochs: 24
   shuffle: True
   mixed_precision: bf16
-  batch_size: 8
+  batch_size: 16
   num_workers: 4
   grad_accumulation: 4
   grad_clip_norm: 1
@@ -34,14 +34,14 @@ test_settings:
   test_seq_path: ./data/ADP/test_set.fasta
   test_label_path: ./data/ADP/test_labels.fasta
 
-  batch_size: 8
+  batch_size: 16
   num_workers: 4
 
 valid_settings:
   valid_seq_path: ./data/ADP/eval_set.fasta
   valid_label_path: ./data/ADP/eval_labels.fasta
 
-  batch_size: 8
+  batch_size: 16
   num_workers: 4
 
 optimizer:

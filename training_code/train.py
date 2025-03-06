@@ -50,7 +50,7 @@ def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alph
         # Experimental: Ensure the smoothed pos weight is at least 100
         # smoothed_pos_weight = max(alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight, 100.0)
         # Experimental: Cap the smoothed positive weight at 50
-        smoothed_pos_weight = min(alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight, 10.0)
+        smoothed_pos_weight = min(alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight, 1.0)
 
     pos_weight_tensor = torch.as_tensor(smoothed_pos_weight, dtype=torch.float, device=device)
     pos_weight_tensor = pos_weight_tensor.clone().detach()
