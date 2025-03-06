@@ -91,28 +91,28 @@ def prepare_dataloaders(configs, debug = False, debug_subset_size=None):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     dataloaders = {}
 
-    data_type = configs.data_type
-    base_path = f"./data/{data_type}"  # Base directory for the dataset
+    # data_type = configs.data_type
+    # base_path = f"./data/{data_type}"  # Base directory for the dataset
 
-    # Prepare paths for train, test, and valid DataLoaders
-    if hasattr(configs, 'train_settings'):
-        train_seq_file_path = f"{base_path}/train_set.fasta"
-        train_label_file_path = f"{base_path}/train_labels.fasta"
+    # # Prepare paths for train, test, and valid DataLoaders
+    # if hasattr(configs, 'train_settings'):
+    #     train_seq_file_path = f"{base_path}/train_set.fasta"
+    #     train_label_file_path = f"{base_path}/train_labels.fasta"
 
-    if hasattr(configs, 'valid_settings'):
-        valid_seq_file_path = f"{base_path}/eval_set.fasta"
-        valid_label_file_path = f"{base_path}/eval_labels.fasta"
+    # if hasattr(configs, 'valid_settings'):
+    #     valid_seq_file_path = f"{base_path}/eval_set.fasta"
+    #     valid_label_file_path = f"{base_path}/eval_labels.fasta"
 
-    if hasattr(configs, 'test_settings'):
-        test_seq_file_path = f"{base_path}/test_set.fasta"
-        test_label_file_path = f"{base_path}/test_labels.fasta"
+    # if hasattr(configs, 'test_settings'):
+    #     test_seq_file_path = f"{base_path}/test_set.fasta"
+    #     test_label_file_path = f"{base_path}/test_labels.fasta"
 
 
     # Prepare train, test, and valid DataLoaders
     if hasattr(configs, 'train_settings'):
         # use default names, or config names if no default names
-        train_seq_file = train_seq_file_path or configs.train_settings.train_seq_path
-        train_label_file = train_label_file_path or configs.train_settings.train_label_path
+        train_seq_file = configs.train_settings.train_seq_path
+        train_label_file = configs.train_settings.train_label_path
         batch_size = configs.train_settings.batch_size
         max_length = configs.train_settings.max_sequence_length
         shuffle = configs.train_settings.shuffle
@@ -134,8 +134,8 @@ def prepare_dataloaders(configs, debug = False, debug_subset_size=None):
         )
 
     if hasattr(configs, 'valid_settings'):
-        valid_seq_file = valid_seq_file_path or configs.valid_settings.valid_seq_path
-        valid_label_file = valid_label_file_path or configs.valid_settings.valid_label_path
+        valid_seq_file = configs.valid_settings.valid_seq_path
+        valid_label_file = configs.valid_settings.valid_label_path
         batch_size = configs.valid_settings.batch_size
         max_length = configs.train_settings.max_sequence_length
         num_workers = configs.valid_settings.num_workers
@@ -155,8 +155,8 @@ def prepare_dataloaders(configs, debug = False, debug_subset_size=None):
         )
 
     if hasattr(configs, 'test_settings'):
-        test_seq_file = test_seq_file_path or configs.test_settings.test_seq_path
-        test_label_file = test_label_file_path or configs.test_settings.test_label_path
+        test_seq_file = configs.test_settings.test_seq_path
+        test_label_file = configs.test_settings.test_label_path
         batch_size = configs.test_settings.batch_size
         max_length = configs.train_settings.max_sequence_length
         num_workers = configs.test_settings.num_workers
@@ -191,19 +191,10 @@ def analyze_data(configs):
     from collections import Counter
     # Define file paths for train, valid, and test datasets
 
-    data_type = configs.data_type
-    base_path = f"./data/{data_type}"  # Base directory for the dataset
-    train_seq_file_path = f"{base_path}/train_set.fasta"
-    train_label_file_path = f"{base_path}/train_labels.fasta"
-    valid_seq_file_path = f"{base_path}/eval_set.fasta"
-    valid_label_file_path = f"{base_path}/eval_labels.fasta"
-    test_seq_file_path = f"{base_path}/test_set.fasta"
-    test_label_file_path = f"{base_path}/test_labels.fasta"
-
     file_paths = [
-        (train_seq_file_path, train_label_file_path),
-        (valid_seq_file_path, valid_label_file_path),
-        (test_seq_file_path, test_label_file_path)
+        (configs.train_settings.train_seq_path, configs.train_settings.train_label_path),
+        (configs.valid_settings.valid_seq_path, configs.valid_settings.valid_label_path),
+        (configs.test_settings.test_seq_path, configs.test_settings.test_label_path)
     ]
 
     # Dictionaries to store counts
