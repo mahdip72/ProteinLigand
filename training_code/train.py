@@ -5,14 +5,14 @@ import yaml
 import torch
 import numpy as np
 from utils import load_configs, prepare_saving_dir, prepare_tensorboard, get_optimizer, get_scheduler, save_checkpoint, load_checkpoint, visualize_predictions
-from dataset import prepare_dataloaders
+from dataset import prepare_dataloaders, get_binding_proportion
 from model import prepare_model
 import tqdm
 import torchmetrics
 from torch.amp import GradScaler, autocast
 import torch.nn.functional as F
 
-def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0, label_smoothing=0.0):
+def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0, label_smoothing=0.0, binding_ratio=0.0, **kwargs):
     """
     Calculates the loss using either weighted BCE or focal loss.
 
@@ -46,11 +46,19 @@ def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alph
     if smoothed_pos_weight is None:
         smoothed_pos_weight = current_pos_weight
     else:
-        # smoothed_pos_weight = alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight
-        # Experimental: Ensure the smoothed pos weight is at least 100
-        # smoothed_pos_weight = max(alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight, 100.0)
-        # Experimental: Cap the smoothed positive weight at 50
-        smoothed_pos_weight = min(alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight, 1.0)
+        weight_divisor = kwargs.get("configs", {}).get("pos_weight_divisor", 1)
+        max_weight = kwargs.get("configs", {}).get("max_pos_weight", 1)
+
+        smoothed_weight = alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight
+        smoothed_pos_weight = min(smoothed_weight, 1)
+        # smoothed_pos_weight = smoothed_weight
+        # Experimental: Cap the smoothed positive weight at a very small value
+        # smoothed_pos_weight = max(smoothed_weight/weight_divisor, 1)
+        # Experimental: Use binding rate to determine max positive weight
+        # if binding_ratio > 0:
+        #     smoothed_pos_weight = max(binding_ratio/weight_divisor, 1)
+        # else:
+        #     smoothed_pos_weight = min(smoothed_weight, max_weight)
 
     pos_weight_tensor = torch.as_tensor(smoothed_pos_weight, dtype=torch.float, device=device)
     pos_weight_tensor = pos_weight_tensor.clone().detach()
@@ -97,7 +105,7 @@ def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alph
     return loss, smoothed_pos_weight
 
 
-def training_loop(model, trainloader, optimizer, epoch, device, scaler, scheduler, train_writer=None, grad_clip_norm=1, alpha = 0.9, gamma = 2.0, label_smoothing = 0.0, **kwargs):
+def training_loop(model, trainloader, optimizer, epoch, device, scaler, scheduler, train_writer=None, grad_clip_norm=1, alpha = 0.9, gamma = 2.0, label_smoothing = 0.0, binding_ratio=0.0, **kwargs):
     """
     Training loop for fine-tuning the model on the Ligand dataset.
 
@@ -125,6 +133,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
 
     # For logging within each epoch instead of just once every epoch since each epoch takes a long time, logging 100 times per epoch
     log_interval = max(len(trainloader) // 100, 1)
+    mixed_precision = kwargs.get("configs", {}).get("train_settings", {}).get("mixed_precision", "no")
 
     for i, batch in tqdm.tqdm(enumerate(trainloader), total=len(trainloader), desc=f"Epoch {epoch + 1}", leave=False):
         inputs = batch["input_ids"].to(device)
@@ -134,7 +143,6 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         optimizer.zero_grad()
 
         # Mixed precision training
-        mixed_precision = kwargs.get("configs", {}).get("train_settings", {}).get("mixed_precision", "no")
         if mixed_precision == "fp16":
             autocast_dtype = torch.float16
         elif mixed_precision == "bf16":
@@ -153,7 +161,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
                 alpha=alpha,
                 use_focal_loss=False,
                 gamma=gamma,
-                label_smoothing=label_smoothing
+                label_smoothing=label_smoothing,
+                binding_ratio=binding_ratio,
+                **kwargs
             )
 
         scaler.scale(loss).backward()
@@ -190,9 +200,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
 
     print(f"Training Accuracy: {100 * epoch_acc:.2f}%, F1 Score: {epoch_f1:.2f}")
 
-    return avg_train_loss
+    return avg_train_loss, epoch_f1
 
-def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha = 0.9, gamma = 2.0, label_smoothing = 0.0, **kwargs):
+def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha = 0.9, gamma = 2.0, label_smoothing = 0.0, binding_ratio=0.0, **kwargs):
     """
     Validation loop to evaluate the model on the test/validation dataset.
 
@@ -233,7 +243,9 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha =
                     alpha=alpha,
                     use_focal_loss=False,
                     gamma=gamma,
-                    label_smoothing=label_smoothing
+                    label_smoothing=label_smoothing,
+                    binding_ratio=binding_ratio,
+                    **kwargs
                 )
                 valid_loss += loss.item()
 
@@ -255,9 +267,9 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha =
 
     print(f"Validation Accuracy: {100 * valid_acc:.2f}%, F1 Score: {valid_f1:.2f}")
 
-    return avg_valid_loss
+    return avg_valid_loss, valid_f1
 
-def evaluation_loop(model, testloader, device, log_confidences=False, alpha = 0.9, gamma = 2.0, label_smoothing = 0.0, **kwargs):
+def evaluation_loop(model, testloader, device, log_confidences=False, alpha = 0.9, gamma = 2.0, label_smoothing = 0.0, binding_ratio=0.0, **kwargs):
     """
     Test loop to evaluate the model on the test dataset with detailed analytics.
 
@@ -309,7 +321,9 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha = 0.
                     alpha=alpha,
                     use_focal_loss=False,
                     gamma=gamma,
-                    label_smoothing=label_smoothing
+                    label_smoothing=label_smoothing,
+                    binding_ratio=binding_ratio,
+                    **kwargs
                 )
                 test_loss += loss.item()
 
@@ -423,8 +437,9 @@ def main(dict_config, config_file_path):
     checkpoint_every = configs.checkpoints_every
     scaler = GradScaler()
     start_epoch = 0
+    train_binding_ratio, total_binding_ratio = get_binding_proportion(configs)
 
-    # load_checkpoint_path = "./results/test/2025-03-03__12-38-27__ZN/checkpoints/checkpoint_epoch_24.pth"
+    # load_checkpoint_path = "/home/dc57y/data/2025-03-12__12-56-26__ZN/checkpoints/checkpoint_epoch_17.pth"
     load_checkpoint_path = None
 
     if not load_checkpoint_path:
@@ -444,24 +459,55 @@ def main(dict_config, config_file_path):
             return
 
     train = True
+    on_hellbender = True
+    save_best_checkpoint_only = True
+    if save_best_checkpoint_only:
+      best_f1 = -1.0 
+      best_model_state = None
+      best_epoch = -1
+      
     if train:
-        result_path, checkpoint_path = prepare_saving_dir(configs, config_file_path)
+        result_path, checkpoint_path = prepare_saving_dir(configs, config_file_path, save_to_data=on_hellbender)
         train_writer, valid_writer = prepare_tensorboard(result_path)
 
         for epoch in range(start_epoch, num_epochs):
+            training_loss, training_f1 = training_loop(model, trainloader, optimizer, epoch, device, scaler, scheduler,
+                                                       train_writer=train_writer, grad_clip_norm=grad_clip_norm, alpha=alpha,
+                                                       gamma=gamma, label_smoothing=label_smoothing, binding_ratio=train_binding_ratio, configs=configs)
 
-            training_loop(model, trainloader, optimizer, epoch, device, scaler, scheduler, train_writer=train_writer, grad_clip_norm=grad_clip_norm, alpha=alpha, gamma=gamma, label_smoothing=label_smoothing, configs=configs)
-            validation_loop(model, validloader, epoch, device, valid_writer=valid_writer, alpha=alpha, gamma=gamma, configs=configs, label_smoothing=label_smoothing,)
-
+            valid_loss, valid_f1 = validation_loop(model, validloader, epoch, device, valid_writer=valid_writer,
+                                                   alpha=alpha, gamma=gamma, configs=configs, label_smoothing=label_smoothing, binding_ratio=train_binding_ratio)
             scheduler.step()
-
-            if (epoch + 1) % checkpoint_every == 0:
-                save_checkpoint(model, optimizer, scheduler, scaler, epoch, checkpoint_path)
-    test = False
+            if save_best_checkpoint_only:
+              if valid_f1 > best_f1:
+                best_f1 = valid_f1
+                best_epoch = epoch
+                best_model_state = {
+                    'model': model,
+                    'optimizer': optimizer,
+                    'scheduler': scheduler,
+                    'scaler': scaler,
+                    'epoch': epoch
+                }
+            else:
+              if (epoch + 1) % checkpoint_every == 0:
+                  save_checkpoint(model, optimizer, scheduler, scaler, epoch, checkpoint_path)
+        if save_best_checkpoint_only and best_f1 > -1:
+          save_checkpoint(
+              best_model_state['model'],
+              best_model_state['optimizer'],
+              best_model_state['scheduler'],
+              best_model_state['scaler'],
+              best_model_state['epoch'],
+              checkpoint_path
+          )
+        print(f"Best Validation F1 Score: {valid_f1:.2f}" )
+    
+    test = True
     if test:
         print("Testing model on test dataset")
         load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler)
-        results = evaluation_loop(model, testloader, device, log_confidences=True, alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)
+        results = evaluation_loop(model, testloader, device, log_confidences=True, alpha=alpha, gamma=gamma, label_smoothing=label_smoothing, binding_ratio=train_binding_ratio)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fine-tune the Ligand model')

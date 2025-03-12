@@ -91,23 +91,6 @@ def prepare_dataloaders(configs, debug = False, debug_subset_size=None):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     dataloaders = {}
 
-    # data_type = configs.data_type
-    # base_path = f"./data/{data_type}"  # Base directory for the dataset
-
-    # # Prepare paths for train, test, and valid DataLoaders
-    # if hasattr(configs, 'train_settings'):
-    #     train_seq_file_path = f"{base_path}/train_set.fasta"
-    #     train_label_file_path = f"{base_path}/train_labels.fasta"
-
-    # if hasattr(configs, 'valid_settings'):
-    #     valid_seq_file_path = f"{base_path}/eval_set.fasta"
-    #     valid_label_file_path = f"{base_path}/eval_labels.fasta"
-
-    # if hasattr(configs, 'test_settings'):
-    #     test_seq_file_path = f"{base_path}/test_set.fasta"
-    #     test_label_file_path = f"{base_path}/test_labels.fasta"
-
-
     # Prepare train, test, and valid DataLoaders
     if hasattr(configs, 'train_settings'):
         # use default names, or config names if no default names
@@ -262,7 +245,61 @@ def analyze_data(configs):
     print(f"Total sequence length: {total_sequence_length}")
     print(f"Average sequence length: {average_sequence_length:.2f}")
 
-    return sorted_binding
+    return 1/total_binding_proportion
+
+def get_binding_proportion(configs):
+    """
+    Computes and returns the binding proportion for the training set and overall dataset.
+
+    Args:
+        configs: Configuration object containing paths to sequence and label FASTA files.
+
+    Returns:
+        tuple: (train_binding_ratio, overall_binding_ratio)
+    """
+    from collections import Counter
+
+    # Define file paths for train, valid, and test datasets
+    file_paths = {
+        "train": (configs.train_settings.train_seq_path, configs.train_settings.train_label_path),
+        "valid": (configs.valid_settings.valid_seq_path, configs.valid_settings.valid_label_path),
+        "test": (configs.test_settings.test_seq_path, configs.test_settings.test_label_path)
+    }
+
+    # Dictionaries to store counts
+    binding_counts = Counter()
+    total_counts = Counter()
+
+    # Store train dataset separately
+    train_binding_count = 0
+    train_total_count = 0
+
+    # Iterate over datasets
+    for dataset, (seq_file, label_file) in file_paths.items():
+        if seq_file and label_file:  # Ensure paths are provided
+            sequences = read_fasta(seq_file)
+            labels = read_fasta(label_file)
+
+            for seq_id in sequences:
+                if seq_id in labels and len(sequences[seq_id]) == len(labels[seq_id]):
+                    sequence = sequences[seq_id]
+                    label = labels[seq_id]
+
+                    # Count total amino acids
+                    total_counts.update(sequence)
+                    binding_counts.update([aa for aa, bind in zip(sequence, label) if bind == "1"])
+
+                    # Separate train set counts
+                    if dataset == "train":
+                        train_binding_count += sum(1 for b in label if b == "1")
+                        train_total_count += len(label)
+
+    # Compute binding proportions
+    overall_binding_ratio = sum(binding_counts.values()) / sum(total_counts.values()) if sum(
+        total_counts.values()) > 0 else 0
+    train_binding_ratio = train_binding_count / train_total_count if train_total_count > 0 else 0
+
+    return 1/train_binding_ratio, 1/overall_binding_ratio
 
 if __name__ == '__main__':
     # This is the main function to test the dataloader
@@ -299,4 +336,6 @@ if __name__ == '__main__':
         print(f"Number of samples in test_loader: {len(test_loader.dataset)}")
         print(f"Number of batches in test_loader: {len(test_loader)}")
 
-    analyze_data(configs)
+    # analyze_data(configs)
+    print(get_binding_proportion(configs))
+

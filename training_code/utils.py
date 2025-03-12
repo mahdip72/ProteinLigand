@@ -112,34 +112,40 @@ def prepare_tensorboard(result_path):
 
     return train_writer, val_writer
 
-def prepare_saving_dir(configs, config_file_path):
+def prepare_saving_dir(configs, config_file_path, save_to_data=False):
     """
-    Prepare a directory for saving a training results.
+    Prepare a directory for saving training results.
 
     Args:
         configs: A python box object containing the configuration options.
-        config_file_path: Directory of configuration file.
+        config_file_path: Path to the configuration file.
+        save_to_data (bool, optional): If True, save in Hellbender 500GB ~/data instead of the normal path. Defaults to False.
 
     Returns:
-        str: The path to the directory where the results will be saved.
+        tuple: (result_path, checkpoint_path) - The paths where results and checkpoints will be saved.
     """
     # Create a unique identifier for the run based on the current time.
     run_id = datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S')
 
     # Optionally label the run_id with the dataset name
     if configs.data_type:
-        data_type = configs.data_type
-        run_id += f"__{data_type}"
+        run_id += f"__{configs.data_type}"
 
-    # Create the result directory and the checkpoint subdirectory.
-    result_path = os.path.abspath(os.path.join(configs.result_path, run_id))
+    # Determine the base save path
+    if save_to_data:
+        base_path = os.path.expanduser("~/data")  # Expands ~/data to absolute path
+    else:
+        base_path = os.path.abspath(configs.result_path)
+
+    # Create the result directory and checkpoint subdirectory.
+    result_path = os.path.join(base_path, run_id)
     checkpoint_path = os.path.join(result_path, 'checkpoints')
     Path(result_path).mkdir(parents=True, exist_ok=True)
     Path(checkpoint_path).mkdir(parents=True, exist_ok=True)
 
     # Copy the config file to the result directory.
     shutil.copy(config_file_path, result_path)
-    # Return the path to the result directory.
+
     return result_path, checkpoint_path
 
 def save_checkpoint(model, optimizer, scheduler, scaler, epoch, checkpoint_path):
