@@ -1,65 +1,85 @@
-checkpoints_every: 24
-data_type: ZN
 fix_seed: 0
-max_pos_weight: 2
-model:
-  backbone_dropout_rate: 0.3
-  classifier_dropout_rate: 0.5
-  freeze_backbone: true
-  freeze_backbone_layers: 30
-  freeze_embeddings: true
-  hidden_size: 1280
-  model_name: facebook/esm2_t33_650M_UR50D
-optimizer:
-  beta_1: 0.9
-  beta_2: 0.999
-  decay:
-    gamma: 0.2
-    min_lr: 0
-    num_restarts: 1
-    warmup: 512
-  eps: 1e-16
-  grad_clip_norm: 1
-  lr: 5e-5
-  momentum: 0.9
-  name: adam
-  nesterov: true
-  use_8bit_adam: false
-  weight_decay: 1e-2
-  weight_decouple: true
-pos_weight_divisor: 30
+checkpoints_every: 24
+tensorboard_log: True
+tqdm_progress_bar: True
 result_path: ./results/test/
-scheduler:
-  T_0: 24
-  T_max: 24
-  T_mult: 2
-  eta_min: 0
-  eta_min_first: 0.0005
-  eta_min_second: 1.0e-05
-  name: cosine_annealing
-tensorboard_log: true
-test_settings:
+data_type: FAD
+pos_weight_divisor: 30
+max_pos_weight: 1
+num_ligands: 10
+ligand_embedding_size: 480
+
+model:
+  model_name: facebook/esm2_t33_650M_UR50D
+  hidden_size: 1280
+  freeze_backbone: True
+  freeze_embeddings: True
+  freeze_backbone_layers: 30
+  classifier_dropout_rate: 0.5
+  backbone_dropout_rate: 0.30
+
+train_settings:
+  train_seq_path: ./data/FAD/train_set.fasta
+  train_label_path: ./data/FAD/train_labels.fasta
+
+  num_epochs: 24
+  shuffle: True
+  mixed_precision: bf16
   batch_size: 16
   num_workers: 4
-  test_label_path: ./data/ZN/test_labels.fasta
-  test_seq_path: ./data/ZN/test_set.fasta
-tqdm_progress_bar: true
-train_settings:
-  alpha: 0.9
-  batch_size: 16
-  gamma: 1
   grad_accumulation: 4
   grad_clip_norm: 1
+  alpha: 0.9
+  gamma: 1
   label_smoothing: 0.0
   max_sequence_length: 768
-  mixed_precision: bf16
-  num_epochs: 24
-  num_workers: 4
-  shuffle: true
-  train_label_path: ./data/ZN/train_labels.fasta
-  train_seq_path: ./data/ZN/train_set.fasta
-valid_settings:
+
+test_settings:
+  test_seq_path: ./data/FAD/test_set.fasta
+  test_label_path: ./data/FAD/test_labels.fasta
+
   batch_size: 16
   num_workers: 4
-  valid_label_path: ./data/ZN/eval_labels.fasta
-  valid_seq_path: ./data/ZN/eval_set.fasta
+
+valid_settings:
+  valid_seq_path: ./data/FAD/eval_set.fasta
+  valid_label_path: ./data/FAD/eval_labels.fasta
+
+  batch_size: 16
+  num_workers: 4
+
+optimizer:
+  name: adam
+#  name: sgd
+  lr: 5e-5
+  weight_decouple: True
+  weight_decay: 1e-2
+  eps: 1e-16
+  beta_1: 0.9
+  beta_2: 0.999
+  use_8bit_adam: False
+  grad_clip_norm: 1
+  decay:
+    warmup: 512
+    min_lr: 0
+    gamma: 0.2
+    num_restarts: 1
+  nesterov: true
+  momentum: 0.90
+
+scheduler:
+#    name: multistep_lr
+    name: cosine_annealing
+#    name: cosine_annealing_warm_restarts
+#    name: cosine_annealing_sequential
+
+    T_max: 24
+    T_0: 24
+    T_mult: 2
+    eta_min: 0
+    eta_min_first: 0.0005
+    eta_min_second: 0.00001
+
+transformer_head:
+  num_layers: 8
+  num_heads: 8

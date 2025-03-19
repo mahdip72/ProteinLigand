@@ -6,7 +6,7 @@ import torch
 import numpy as np
 from utils import load_configs, prepare_saving_dir, prepare_tensorboard, get_optimizer, get_scheduler, save_checkpoint, load_checkpoint, visualize_predictions
 from dataset import prepare_dataloaders, get_binding_proportion
-from model import prepare_model
+from esm_model import prepare_model
 import tqdm
 import torchmetrics
 from torch.amp import GradScaler, autocast
@@ -506,8 +506,9 @@ def main(dict_config, config_file_path):
     test = True
     if test:
         print("Testing model on test dataset")
-        load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler)
-        results = evaluation_loop(model, testloader, device, log_confidences=True, alpha=alpha, gamma=gamma, label_smoothing=label_smoothing, binding_ratio=train_binding_ratio)
+        # load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler)
+        # results = evaluation_loop(model, testloader, device, log_confidences=True, alpha=alpha, gamma=gamma, label_smoothing=label_smoothing, binding_ratio=train_binding_ratio)
+        results = evaluation_loop(best_model_state['model'], testloader, device, log_confidences=True, alpha=alpha, gamma=gamma, label_smoothing=label_smoothing, binding_ratio=train_binding_ratio)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fine-tune the Ligand model')
