@@ -59,8 +59,24 @@ class LigandDataset(Dataset):
     def __getitem__(self, idx):
         seq_id, sequence, label_str = self.data[idx]
         # Tokenize sequence
+        
+        # # Adding BOS and EOS tokens
+        # inputs = self.tokenizer(sequence, return_tensors="pt", padding="max_length", truncation=True,
+        #                         max_length=self.max_length, add_special_tokens=True)
+        
+        # input_ids = inputs["input_ids"].squeeze(0)
+        # attention_mask = inputs["attention_mask"].squeeze(0)
+        # BOS_ID = 0
+        # EOS_ID = 2
+        # # Mask out BOS and EOS in the attention mask, O(2n) operation
+        # attention_mask[input_ids == BOS_ID] = 0
+        # attention_mask[input_ids == EOS_ID] = 0
+        
+        # Testing without BOS and EOS tokens
         inputs = self.tokenizer(sequence, return_tensors="pt", padding="max_length", truncation=True,
-                                max_length=self.max_length, add_special_tokens=True)
+                                max_length=self.max_length, add_special_tokens=False)
+
+
         # Convert label string to tensor
         labels = torch.tensor([int(c) for c in label_str], dtype=torch.long)
         # Pad or truncate labels to max_length
@@ -158,7 +174,6 @@ def prepare_dataloaders(configs, debug = False, debug_subset_size=None):
             pin_memory=True
         )
     return dataloaders
-
 
 def analyze_data(configs):
     """
@@ -326,16 +341,38 @@ if __name__ == '__main__':
 
     if train_loader:
         print(f"Number of samples in train_loader: {len(train_loader.dataset)}")
-        print(f"Number of batches in train_loader: {len(train_loader)}")
+        # print(f"Number of batches in train_loader: {len(train_loader)}")
 
     if valid_loader:
         print(f"Number of samples in valid_loader: {len(valid_loader.dataset)}")
-        print(f"Number of batches in valid_loader: {len(valid_loader)}")
+        # print(f"Number of batches in valid_loader: {len(valid_loader)}")
 
     if test_loader:
         print(f"Number of samples in test_loader: {len(test_loader.dataset)}")
-        print(f"Number of batches in test_loader: {len(test_loader)}")
+        # print(f"Number of batches in test_loader: {len(test_loader)}")
 
-    # analyze_data(configs)
-    print(get_binding_proportion(configs))
+    analyze_data(configs)
+    training_proportion, overall_proportion = get_binding_proportion(configs)
+    print(f"Training Proportion: {training_proportion:.4f}, Overall Proportion: {overall_proportion:.4f}")
+
+    # from esm_model import prepare_model
+    # print('aaaa')
+    # # Prepare tokenizer and model
+    # tokenizer, model = prepare_model(configs)
+    # print('aaaa')
+    # model.to("cuda" if torch.cuda.is_available() else "cpu")
+    # # Define a sample amino acid sequence
+    # sequence = "MVLSPADKTNVKAAWGKVGAHAGEY"
+    # print('aaaa')
+    #
+    # # Tokenize the input sequence
+    # inputs = tokenizer(sequence, return_tensors="pt", padding=True, truncation=True, max_length=64,
+    #                    add_special_tokens=False)
+    #
+    # # ✅ Print Debugging Information
+    # print("\n==== DEBUGGING TOKENIZATION ====")
+    # print("Original Sequence:", sequence)
+    # print("Tokenized Input IDs:", inputs["input_ids"])
+    # print("Decoded Tokens:", tokenizer.convert_ids_to_tokens(inputs["input_ids"].squeeze(0)))  # ✅ Decoded tokens
+    # print("===============================\n")
 

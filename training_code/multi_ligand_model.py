@@ -5,69 +5,6 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig
 import torch
 from torch import nn
 
-# Placeholder
-# TODO: Refine to include masking, layer norm, feedforward, etc.
-class CrossAttentionModule(nn.Module):
-    def __init__(self, embed_dim, num_heads):
-        """
-        Cross-attention mechanism where protein representation attends to ligand embeddings.
-
-        Args:
-            embed_dim (int): Dimension of embeddings (should match ESM2 output size).
-            num_heads (int): Number of attention heads.
-        """
-        super().__init__()
-        self.cross_attention = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads, batch_first=True)
-
-    def forward(self, protein_repr, ligand_repr):
-        """
-        Applies cross-attention where protein queries ligand information.
-
-        Args:
-            protein_repr (Tensor): Output from ESM2 (batch, seq_len, hidden_size).
-            ligand_repr (Tensor): Ligand embedding (batch, 1, hidden_size).
-
-        Returns:
-            Tensor: Cross-attended protein representation.
-        """
-        attn_output, _ = self.cross_attention(protein_repr, ligand_repr, ligand_repr)
-        return attn_output
-
-class TransformerHead(nn.Module):
-    def __init__(self, embed_dim, num_heads, num_layers):
-        """
-        Transformer encoder with interleaved self-attention and cross-attention layers.
-
-        Args:
-            embed_dim (int): Model embedding size (should match ESM2 output size).
-            num_heads (int): Number of attention heads.
-            num_layers (int): Number of transformer layers.
-        """
-        super().__init__()
-        self.layers = nn.ModuleList()
-        self.cross_attention = CrossAttentionModule(embed_dim, num_heads)
-
-        for _ in range(num_layers):
-            self.layers.append(nn.TransformerEncoderLayer(d_model=embed_dim, nhead=num_heads, batch_first=True))
-            self.layers.append(self.cross_attention)  # Interleaved Cross-Attention
-
-    def forward(self, protein_repr, ligand_repr):
-        """
-        Forward pass through transformer encoder.
-
-        Args:
-            protein_repr (Tensor): Protein sequence representation.
-            ligand_repr (Tensor): Ligand embedding.
-
-        Returns:
-            Tensor: Refined protein representation.
-        """
-        for layer in self.layers:
-            protein_repr = layer(protein_repr)  # Apply self-attention on protein representation
-            protein_repr = self.cross_attention(protein_repr, ligand_repr)  # Cross-attention with ligand
-
-        return protein_repr  # Final refined representation
-
 class LigandPredictionModel(nn.Module):
     def __init__(self, configs, num_labels=1):
         """
@@ -137,7 +74,21 @@ class LigandPredictionModel(nn.Module):
         # 5. Transformer Head with Cross-Attention
         num_heads = configs.transformer_head.num_heads
         num_layers = configs.transformer_head.num_layers
-        self.transformer_head = TransformerHead(embed_dim=hidden_size, num_heads=num_heads, num_layers=num_layers)
+        dim_feedforward = configs.transformer_head.dim_feedforward
+        dropout = configs.transformer_head.dropout
+
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=hidden_size,
+            nhead=num_heads,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            batch_first=True
+        )
+
+        self.transformer_decoder = nn.TransformerDecoder(
+            decoder_layer,
+            num_layers=num_layers
+        )
 
         # 6. Add classifier on top
         # self.classifier = nn.Linear(encoder_output_size, num_labels)
@@ -155,13 +106,16 @@ class LigandPredictionModel(nn.Module):
         Returns:
             Tensor: Logits for each residue in the input sequence.
         """
-        # 1. Get Protein Representation from ESM2
+        # 1. Get protein representation
         outputs = self.base_model(input_ids=input_ids, attention_mask=attention_mask)
-        protein_repr = outputs.last_hidden_state # Shape: [batch_size, seq_len, hidden_size]
-        # 2. Retrieve Ligand Embedding
-        ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1) # Shape: [batch_size, 1, hidden_size]
-        # 3. Pass Through Transformer Encoder (Cross-Attention via Memory)
-        transformer_output = self.transformer_head(protein_repr, ligand_repr)
+        protein_repr = outputs.last_hidden_state
+        # 2. Retrieve ligand embedding
+        ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1)
+        # 3. Pass through transformer
+        transformer_output = self.transformer_decoder(
+            tgt=protein_repr,
+            memory=ligand_repr
+        )
         logits = self.classifier(transformer_output)
         return logits
 
@@ -226,12 +180,39 @@ if __name__ == '__main__':
     inputs = {key: val.to(device) for key, val in inputs.items()}
     labels = labels.to(device)
 
+
     # Forward pass through the model
     with torch.no_grad():  # Disable gradient computation for inference
-        logits = model(**inputs)
-        print(f"Logits shape: {logits.shape}")  # Shape: [batch_size, sequence_length, num_labels]
-        # Print the logits tensor
-        # print("Logits values:")
-        # print(logits)
+        ligand_idx = torch.tensor([0]).to(device)
+
+        # Step 1: Input IDs and Tokens
+        print("\n[1] Tokenized Input IDs:")
+        print(inputs["input_ids"])
+        print("\n[1.1] Tokens:")
+        print(tokenizer.convert_ids_to_tokens(inputs["input_ids"].squeeze(0).tolist()))
+
+        # Step 2: Get ESM2 hidden states
+        outputs = model.base_model(
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"]
+        )
+        print(f"\n[2] ESM2 Output Shape: {outputs.last_hidden_state.shape}")
+
+        # Step 3: Ligand embedding
+        ligand_repr = model.ligand_embedding(ligand_idx).unsqueeze(1)
+        print(f"\n[3] Ligand Embedding Shape: {ligand_repr.shape}")
+        print(f"[3.1] Ligand Embedding Vector: {ligand_repr.squeeze(1).cpu().numpy()}")
+
+        # Step 4: Transformer Decoder (cross-attention)
+        transformer_output = model.transformer_decoder(
+            tgt=outputs.last_hidden_state,
+            memory=ligand_repr
+        )
+        print(f"\n[4] Transformer Decoder Output Shape: {transformer_output.shape}")
+
+        # Step 5: Final Classification
+        logits = model.classifier(transformer_output)
+        print(f"\n[5] Final Logits Shape: {logits.shape}")
+        print(f"[5.1] Final Logits (Sample):\n{logits.squeeze(0)[:10]}")  # Show first 10 tokens for readability
 
     # print(model)

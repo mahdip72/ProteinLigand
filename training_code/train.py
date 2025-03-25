@@ -265,7 +265,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha =
         valid_writer.add_scalar("Accuracy", valid_acc, epoch)
         valid_writer.add_scalar("F1_Score", valid_f1, epoch)
 
-    print(f"Validation Accuracy: {100 * valid_acc:.2f}%, F1 Score: {valid_f1:.2f}")
+    print(f"Epoch: {epoch}, Validation Accuracy: {100 * valid_acc:.2f}%, F1 Score: {valid_f1:.4f}")
 
     return avg_valid_loss, valid_f1
 
@@ -501,7 +501,7 @@ def main(dict_config, config_file_path):
               best_model_state['epoch'],
               checkpoint_path
           )
-        print(f"Best Validation F1 Score: {valid_f1:.2f}" )
+        print(f"Best Validation F1 Score: {best_f1:.4f}" )
     
     test = True
     if test:
