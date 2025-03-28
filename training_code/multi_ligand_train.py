@@ -13,9 +13,10 @@ import tqdm
 import torchmetrics
 from torch.amp import GradScaler, autocast
 import torch.nn.functional as F
+from collections import defaultdict
+from sklearn.metrics import f1_score as sk_f1
 
-
-def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0,
+def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0,
                    label_smoothing=0.0, **kwargs):
     """
     Calculates the loss using either weighted BCE or focal loss.
@@ -23,6 +24,7 @@ def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alph
     Args:
         logits (Tensor): Logits output from the model.
         labels (Tensor): Ground truth labels.
+        ligand_idx (Tensor): Index of ligand to use.
         smoothed_pos_weight (float, optional): Smoothed positive class weight. Defaults to None.
         device (str): Device to use (e.g., 'cuda' or 'cpu').
         alpha (float): Weight smoothing parameter for dynamic class balancing. Defaults to 0.9.
@@ -34,52 +36,58 @@ def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alph
         Tensor: The calculated loss.
         float: Updated smoothed positive weight.
     """
+    configs = kwargs.get('configs', None)
     # ========================
     # 1. Dynamic Positive Weight
     # ========================
-    positive_count = labels.sum()
-    negative_count = labels.numel() - positive_count
 
-    # Calculate current positive weight
-    if positive_count > 0 and negative_count > 0:
-        current_pos_weight = negative_count / positive_count
-    else:
-        current_pos_weight = 1.0
+    # positive_count = labels.sum()
+    # negative_count = labels.numel() - positive_count
+    #
+    # # Calculate current positive weight
+    # if positive_count > 0 and negative_count > 0:
+    #     current_pos_weight = negative_count / positive_count
+    # else:
+    #     current_pos_weight = 1.0
+    #
+    # # Smooth the positive weight
+    # if smoothed_pos_weight is None:
+    #     smoothed_pos_weight = current_pos_weight
+    # else:
+    #     smoothed_pos_weight = smoothed_pos_weight
+    #     weight_divisor = configs.pos_weight_divisor if configs and hasattr(configs, 'pos_weight_divisor') else 1
+    #     max_weight = configs.max_pos_weight if configs and hasattr(configs, 'max_pos_weight') else 1
+    #
+    #     smoothed_weight = alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight
+    #     smoothed_pos_weight = min(smoothed_weight, 1)
+    #     # smoothed_pos_weight = smoothed_weight
+    #     # Experimental: Cap the smoothed positive weight at a very small value
+    #     # smoothed_pos_weight = max(smoothed_weight/weight_divisor, 1)
+    #     # else:
+    #     #     smoothed_pos_weight = min(smoothed_weight, max_weight)
+    #
+    # pos_weight_tensor = torch.as_tensor(smoothed_pos_weight, dtype=torch.float, device=device)
+    # pos_weight_tensor = pos_weight_tensor.clone().detach()
+    #
+    # # ========================
+    # # 2. Apply Label Smoothing
+    # # ========================
+    # # label_smoothing in [0.0, 1.0], e.g. 0.1 => "0.9 for positives, 0.1 for negatives"
+    # if label_smoothing > 0.0:
+    #     eps = label_smoothing
+    #     # smoothed_labels = labels.float() * (1.0 - eps) + 0.5 * eps
+    #
+    #     # Experimental smooth less for negative class since the positive weight can be very large
+    #     smoothed_labels = labels.float() * (1.0 - eps) + 0.01 * eps
+    #
+    #     # Experimental: only smooth for the positive class to prevent overconfident false positives
+    #     # smoothed_labels = labels.float() * (1.0 - eps)
+    #
+    # else:
+    #     smoothed_labels = labels.float()
 
-    # Smooth the positive weight
-    if smoothed_pos_weight is None:
-        smoothed_pos_weight = current_pos_weight
-    else:
-        weight_divisor = kwargs.get("configs", {}).get("pos_weight_divisor", 1)
-        max_weight = kwargs.get("configs", {}).get("max_pos_weight", 1)
-
-        smoothed_weight = alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight
-        smoothed_pos_weight = min(smoothed_weight, 1)
-        # smoothed_pos_weight = smoothed_weight
-        # Experimental: Cap the smoothed positive weight at a very small value
-        # smoothed_pos_weight = max(smoothed_weight/weight_divisor, 1)
-        # else:
-        #     smoothed_pos_weight = min(smoothed_weight, max_weight)
-
-    pos_weight_tensor = torch.as_tensor(smoothed_pos_weight, dtype=torch.float, device=device)
-    pos_weight_tensor = pos_weight_tensor.clone().detach()
-
-    # ========================
-    # 2. Apply Label Smoothing
-    # ========================
-    # label_smoothing in [0.0, 1.0], e.g. 0.1 => "0.9 for positives, 0.1 for negatives"
-    if label_smoothing > 0.0:
-        eps = label_smoothing
-        # smoothed_labels = labels.float() * (1.0 - eps) + 0.5 * eps
-
-        # Experimental smooth less for negative class since the positive weight can be very large
-        smoothed_labels = labels.float() * (1.0 - eps) + 0.01 * eps
-
-        # Experimental: only smooth for the positive class to prevent overconfident false positives
-        # smoothed_labels = labels.float() * (1.0 - eps)
-
-    else:
-        smoothed_labels = labels.float()
+    smoothed_labels = labels.float()
+    # commenting out dynamic positive weight for now. Reminder to uncomment line 98 and above code later
 
     # ========================
     # 3. Compute Weighted BCE
@@ -87,22 +95,39 @@ def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alph
     bce_loss = F.binary_cross_entropy_with_logits(
         logits.view(-1),
         smoothed_labels.view(-1),
-        pos_weight=pos_weight_tensor,
+        # pos_weight=pos_weight_tensor,
         reduction='none'
     )
+    bce_loss = bce_loss.view_as(logits)
 
     # ========================
-    # 4. Optional Focal Loss
+    # 4. Dataset Weighting
+    # ========================
+    if configs and hasattr(configs, 'ligands') and hasattr(configs, 'dataset_weight') and ligand_idx is not None:
+        ligand_names = configs.ligands
+        dataset_weight = configs.dataset_weight
+
+        # Get weights for each sample in the batch
+        batch_ligand_weights = torch.tensor([
+            dataset_weight.get(ligand_names[idx.item()], 1.0)
+            for idx in ligand_idx
+        ], device=logits.device)
+
+        weight_matrix = batch_ligand_weights.unsqueeze(1).unsqueeze(2).expand_as(logits)
+    else:
+        weight_matrix = torch.ones_like(logits)
+
+    # ========================
+    # 5. Optional Focal Loss
     # ========================
     if use_focal_loss:
-        # Focal loss
-        pt = torch.exp(-bce_loss)  # Probability for the true class
-        focal_loss = ((1 - pt) ** gamma) * bce_loss
-        loss = focal_loss.mean()
+        pt = torch.exp(-bce_loss)
+        focal_term = ((1 - pt) ** gamma)
+        loss_matrix = focal_term * bce_loss * weight_matrix
     else:
-        # Standard weighted BCE loss
-        loss = bce_loss.mean()
+        loss_matrix = bce_loss * weight_matrix
 
+    loss = loss_matrix.mean()
     return loss, smoothed_pos_weight
 
 
@@ -159,6 +184,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
             loss, smoothed_pos_weight = calculate_loss(
                 logits=logits,
                 labels=labels,
+                ligand_idx=ligand_idx,
                 smoothed_pos_weight=smoothed_pos_weight,
                 device=device,
                 alpha=alpha,
@@ -200,12 +226,12 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         lr = optimizer.param_groups[0]["lr"]
         train_writer.add_scalar("Learning_Rate", lr, epoch)
 
-    print(f"Training Accuracy: {100 * epoch_acc:.2f}%, F1 Score: {epoch_f1:.2f}")
+    print(f"Training Accuracy: {100 * epoch_acc:.2f}%, All-Sites F1 Score: {epoch_f1:.2f}")
 
     return avg_train_loss, epoch_f1
 
 
-def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0.9, gamma=2.0, label_smoothing=0.0, **kwargs):
+def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0.9, gamma=2.0, label_smoothing=0.0, verbose=True, **kwargs):
     """
     Validation loop to evaluate the model on the test/validation dataset.
 
@@ -215,6 +241,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
         epoch: Current epoch number.
         device: Device to run validation on (CPU/GPU).
         valid_writer: TensorBoard writer for logging.
+        verbose: Prints and logs individual ligand F1 scores if True.
         kwargs: Additional parameters.
     """
     accuracy = torchmetrics.Accuracy(task="binary")
@@ -227,6 +254,9 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     valid_loss = 0.0
 
     smoothed_pos_weight = None
+
+    # for keeping track of individual ligand predictions
+    ligand_preds_labels = defaultdict(list)
 
     for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc=f"Validation Epoch {epoch + 1}",
                               leave=False):
@@ -243,6 +273,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
                 loss, smoothed_pos_weight = calculate_loss(
                     logits=logits,
                     labels=labels,
+                    ligand_idx=ligand_idx,
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
                     alpha=alpha,
@@ -253,9 +284,21 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
                 )
                 valid_loss += loss.item()
 
-            predictions = torch.sigmoid(logits) > 0.5
+            probs = torch.sigmoid(logits)
+            predictions = (probs > 0.5).long()
+            predictions = predictions.squeeze(-1)
+            batch_size, seq_len = predictions.shape
             accuracy.update(predictions.view(-1), labels.view(-1))
             f1_score.update(predictions.view(-1), labels.view(-1))
+
+            for b in range(batch_size):
+                for t in range(seq_len):
+                    if attention_mask[b][t]:
+                        lig = int(ligand_idx[b].item())
+                        ligand_preds_labels[lig].append((
+                            predictions[b][t].item(),
+                            labels[b][t].item()
+                        ))
 
     avg_valid_loss = valid_loss / len(testloader)
     valid_acc = accuracy.compute().cpu().item()
@@ -264,14 +307,37 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     accuracy.reset()
     f1_score.reset()
 
+    # Compute per-ligand F1 and macro F1
+    ligand_f1s = {}
+    all_f1s = []
+    for lig_id, pairs in ligand_preds_labels.items():
+        if pairs:
+            y_pred, y_true = zip(*pairs)
+            f1 = sk_f1(y_true, y_pred, zero_division=0)
+            ligand_f1s[lig_id] = f1
+            all_f1s.append(f1)
+
+    macro_f1 = np.mean(all_f1s) if all_f1s else 0.0
+
     if valid_writer:
         valid_writer.add_scalar("Loss", avg_valid_loss, epoch)
         valid_writer.add_scalar("Accuracy", valid_acc, epoch)
         valid_writer.add_scalar("F1_Score", valid_f1, epoch)
+        valid_writer.add_scalar("Macro_F1", macro_f1, epoch)
 
-    print(f"Epoch: {epoch}, Validation Accuracy: {100 * valid_acc:.2f}%, F1 Score: {valid_f1:.4f}")
+    print(f"Epoch: {epoch}, Validation Accuracy: {100 * valid_acc:.2f}%, All-Sites F1 Score: {valid_f1:.4f}, Macro F1: {macro_f1:.4f}")
 
-    return avg_valid_loss, valid_f1
+    if verbose:
+        configs = kwargs.get("configs", None)
+        ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
+        ligand2name = {i: name for i, name in enumerate(ligand_names)}
+        for lig_id, f1 in ligand_f1s.items():
+            lig_name = ligand2name.get(lig_id, f"Ligand_{lig_id}")
+            print(f"  {lig_name}: F1 = {f1:.4f}")
+            if valid_writer:
+                valid_writer.add_scalar(f"Ligand_F1/{lig_name}", f1, epoch)
+
+    return avg_valid_loss, valid_f1, macro_f1
 
 
 def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9, gamma=2.0, label_smoothing=0.0, **kwargs):
@@ -324,6 +390,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
                 loss, smoothed_pos_weight = calculate_loss(
                     logits=logits,
                     labels=labels,
+                    ligand_idx=ligand_idx,
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
                     alpha=alpha,
@@ -389,7 +456,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
     print("\n=== Test Results ===")
     print(f"Loss: {avg_test_loss:.4f}")
     print(f"Accuracy: {100 * test_acc:.2f}%")
-    print(f"F1 Score: {test_f1:.4f}")
+    print(f"All-Sites F1 Score: {test_f1:.4f}")
     print(f"Precision: {test_precision:.4f}")
     print(f"Recall: {test_recall:.4f}")
     print(f"True Positives: {tp}, False Positives: {fp}")
@@ -415,15 +482,20 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
         ligand_names = []
     ligand2name = {i: name for i, name in enumerate(ligand_names)}
 
-    from sklearn.metrics import f1_score as sk_f1
-
+    ligand_f1s = []
     for ligand_idx, pairs in ligand_preds_labels.items():
         preds, labels = zip(*pairs)
         f1 = sk_f1(labels, preds, zero_division=0)
+        ligand_f1s.append(f1)
         name = ligand2name.get(ligand_idx, str(ligand_idx))
         print(f"{name}: F1 = {f1:.4f} ({len(pairs)} classification points)")
 
-    # Return metrics for further analysis
+    if ligand_f1s:
+        macro_f1 = np.mean(ligand_f1s)
+        print(f"\nMacro F1 Score (Average across {len(ligand_f1s)} ligands): {macro_f1:.4f}")
+    else:
+        print("\nMacro F1 Score: N/A (no ligand data)")
+
     return {
         "loss": avg_test_loss,
         "accuracy": test_acc,
@@ -439,6 +511,15 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
 
 
 def main(dict_config, config_file_path):
+
+    # Flags for convenience
+    train = False
+    on_hellbender = True
+    save_best_checkpoint_only = True
+    use_checkpoint = True
+    visualize = False
+    test = True
+
     configs = load_configs(dict_config)
 
     if isinstance(configs.fix_seed, int):
@@ -471,8 +552,10 @@ def main(dict_config, config_file_path):
     scaler = GradScaler()
     start_epoch = 0
 
-    load_checkpoint_path = "/home/dc57y/data/2025-03-24__19-00-17__TOP-10/checkpoints/checkpoint_epoch_9.pth"
-    # load_checkpoint_path = None
+    if use_checkpoint:
+        load_checkpoint_path = "/home/dc57y/data/2025-03-27__17-28-04__TOP-10/checkpoints/checkpoint_epoch_7.pth"
+    else:
+        load_checkpoint_path = None
     if not load_checkpoint_path:
         print("Training without using any checkpoints")
 
@@ -483,15 +566,11 @@ def main(dict_config, config_file_path):
         start_epoch = load_checkpoint(load_checkpoint_path, model) + 1
         start_epoch = 0
 
-        visualize = False
         if visualize:
             print("Visualizing predictions on test dataset")
             visualize_predictions(model, testloader, device, num_sequences=10)
             return
 
-    train = False
-    on_hellbender = True
-    save_best_checkpoint_only = True
     if save_best_checkpoint_only:
         best_f1 = -1.0
         best_model_state = None
@@ -508,13 +587,13 @@ def main(dict_config, config_file_path):
                                                        gamma=gamma, label_smoothing=label_smoothing,
                                                        configs=configs)
 
-            valid_loss, valid_f1 = validation_loop(model, validloader, epoch, device, valid_writer=valid_writer,
+            valid_loss, _, macro_f1 = validation_loop(model, validloader, epoch, device, valid_writer=valid_writer,
                                                    alpha=alpha, gamma=gamma, configs=configs,
                                                    label_smoothing=label_smoothing,)
             scheduler.step()
             if save_best_checkpoint_only:
-                if valid_f1 > best_f1:
-                    best_f1 = valid_f1
+                if macro_f1 > best_f1:
+                    best_f1 = macro_f1
                     best_epoch = epoch
                     best_model_state = {
                         'model': model,
@@ -535,13 +614,12 @@ def main(dict_config, config_file_path):
                 best_model_state['epoch'],
                 checkpoint_path
             )
-        print(f"Best Validation F1 Score: {best_f1:.4f}")
+        print(f"Best Validation Macro F1 Score: {best_f1:.4f}")
 
-    test = True
     if test:
         print("Testing model on test dataset")
         load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler)
-        results = evaluation_loop(model, testloader, device, log_confidences=True, alpha=alpha, gamma=gamma, label_smoothing=label_smoothing, configs=configs)
+        results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha, gamma=gamma, label_smoothing=label_smoothing, configs=configs)
         # results = evaluation_loop(best_model_state['model'], testloader, device, log_confidences=True, alpha=alpha,
         #                           gamma=gamma, label_smoothing=label_smoothing, configs=configs)
 
