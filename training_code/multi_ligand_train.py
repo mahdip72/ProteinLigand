@@ -132,7 +132,7 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
 
 
 def training_loop(model, trainloader, optimizer, epoch, device, scaler, scheduler, train_writer=None, grad_clip_norm=1,
-                  alpha=0.9, gamma=2.0, label_smoothing=0.0, **kwargs):
+                  alpha=0.9, gamma=2.0, label_smoothing=0.0, verbose=False, **kwargs):
     """
     Training loop for fine-tuning the model on the Ligand dataset.
 
@@ -146,6 +146,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         scheduler: Learning rate scheduler.
         train_writer: TensorBoard writer for logging.
         grad_clip_norm: Gradient clipping value.
+        verbose: (bool): If True, logs individual and macro ligand F1 scores in TensorBoard. // (Makes training around twice as slow)
         kwargs: Additional parameters.
     """
     accuracy = torchmetrics.Accuracy(task="binary")
@@ -155,8 +156,11 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
     f1_score.to(device)
     model.train()
     running_loss = 0.0
-
     smoothed_pos_weight = None
+
+    # for keeping track of individual ligand predictions
+    if verbose:
+        ligand_preds_labels = defaultdict(list)
 
     # For logging within each epoch instead of just once every epoch since each epoch takes a long time, logging 100 times per epoch
     log_interval = max(len(trainloader) // 100, 1)
@@ -202,9 +206,22 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
 
         running_loss += loss.item()
 
-        predictions = torch.sigmoid(logits) > 0.5
+        probs = torch.sigmoid(logits)
+        predictions = (probs > 0.5).long()
+        predictions = predictions.squeeze(-1)
+        batch_size, seq_len = predictions.shape
         accuracy.update(predictions.view(-1), labels.view(-1))
         f1_score.update(predictions.view(-1), labels.view(-1))
+
+        if verbose:
+            for b in range(batch_size):
+                for t in range(seq_len):
+                    if attention_mask[b][t]:
+                        lig = int(ligand_idx[b].item())
+                        ligand_preds_labels[lig].append((
+                            predictions[b][t].item(),
+                            labels[b][t].item()
+                        ))
 
         if train_writer and (i + 1) % log_interval == 0:
             train_writer.add_scalar("Gradient_Norm", grad_norm, epoch * len(trainloader) + i)
@@ -219,6 +236,18 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
     accuracy.reset()
     f1_score.reset()
 
+    if verbose:
+        ligand_f1s = {}
+        all_f1s = []
+        for lig_id, pairs in ligand_preds_labels.items():
+            if pairs:
+                y_pred, y_true = zip(*pairs)
+                f1 = sk_f1(y_true, y_pred, zero_division=0)
+                ligand_f1s[lig_id] = f1
+                all_f1s.append(f1)
+
+        macro_f1 = np.mean(all_f1s) if all_f1s else 0.0
+
     if train_writer:
         train_writer.add_scalar("Loss", avg_train_loss, epoch)
         train_writer.add_scalar("Accuracy", epoch_acc, epoch)
@@ -226,7 +255,20 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         lr = optimizer.param_groups[0]["lr"]
         train_writer.add_scalar("Learning_Rate", lr, epoch)
 
-    print(f"Training Accuracy: {100 * epoch_acc:.2f}%, All-Sites F1 Score: {epoch_f1:.2f}")
+
+    if verbose and train_writer:
+        configs = kwargs.get("configs", None)
+        ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
+        ligand2name = {i: name for i, name in enumerate(ligand_names)}
+        for lig_id, f1 in ligand_f1s.items():
+            lig_name = ligand2name.get(lig_id, f"Ligand_{lig_id}")
+            train_writer.add_scalar("Macro_F1", macro_f1, epoch)
+            train_writer.add_scalar(f"Ligand_F1/{lig_name}", f1, epoch)
+
+    if verbose:
+        print(f"Training Accuracy: {100 * epoch_acc:.2f}%, All-Sites F1: {epoch_f1:.4f}, Macro F1: {macro_f1:.4f}")
+    else:
+        print(f"Training Accuracy: {100 * epoch_acc:.2f}%, All-Sites F1: {epoch_f1:.4f}")
 
     return avg_train_loss, epoch_f1
 
@@ -252,10 +294,8 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
 
     model.eval()
     valid_loss = 0.0
-
     smoothed_pos_weight = None
 
-    # for keeping track of individual ligand predictions
     ligand_preds_labels = defaultdict(list)
 
     for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc=f"Validation Epoch {epoch + 1}",
@@ -307,7 +347,6 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     accuracy.reset()
     f1_score.reset()
 
-    # Compute per-ligand F1 and macro F1
     ligand_f1s = {}
     all_f1s = []
     for lig_id, pairs in ligand_preds_labels.items():
@@ -513,10 +552,10 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
 def main(dict_config, config_file_path):
 
     # Flags for convenience
-    train = False
+    train = True
     on_hellbender = True
     save_best_checkpoint_only = True
-    use_checkpoint = True
+    use_checkpoint = False
     visualize = False
     test = True
 
