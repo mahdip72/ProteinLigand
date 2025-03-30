@@ -657,10 +657,14 @@ def main(dict_config, config_file_path):
 
     if test:
         print("Testing model on test dataset")
-        load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler)
-        results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha, gamma=gamma, label_smoothing=label_smoothing, configs=configs)
-        # results = evaluation_loop(best_model_state['model'], testloader, device, log_confidences=True, alpha=alpha,
-        #                           gamma=gamma, label_smoothing=label_smoothing, configs=configs)
+        if use_checkpoint:
+            load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler)
+            results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha, gamma=gamma,
+                                      label_smoothing=label_smoothing, configs=configs)
+        else:
+            load_checkpoint_path = None
+            results = evaluation_loop(best_model_state['model'], testloader, device, log_confidences=True, alpha=alpha,
+                                  gamma=gamma, label_smoothing=label_smoothing, configs=configs)
 
 
 if __name__ == '__main__':
