@@ -28,13 +28,13 @@ class LigandPredictionModel(nn.Module):
         freeze_backbone_layers = configs.model.freeze_backbone_layers
         classifier_dropout_rate = configs.model.classifier_dropout_rate
         backbone_dropout_rate = configs.model.backbone_dropout_rate
+        esm_to_decoder_dropout_rate = configs.model.last_state_dropout_rate
         num_ligands = configs.num_ligands
         ligand_embedding_dim = configs.ligand_embedding_size
 
         # 2. Load the pretrained transformer
         config = AutoConfig.from_pretrained(base_model_name)
         config.torch_dtype = "bfloat16"
-        config.classifier_dropout = classifier_dropout_rate
         self.base_model = AutoModel.from_pretrained(base_model_name, config=config)
 
         # 3. Freeze backbone if requested
@@ -66,6 +66,9 @@ class LigandPredictionModel(nn.Module):
                         layer.intermediate.dropout = nn.Dropout(backbone_dropout_rate)
                         layer.output.dropout = nn.Dropout(backbone_dropout_rate)
 
+        # Final dropout layer for the last hidden state
+        self.encoder_to_decoder_dropout = nn.Dropout(esm_to_decoder_dropout_rate)
+
         # 4. Ligand Embedding Table
         # self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=ligand_embedding_dim)
         self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=hidden_size) # Testing with matching embedding and hidden size
@@ -91,6 +94,8 @@ class LigandPredictionModel(nn.Module):
 
         # 6. Add classifier on top
         # self.classifier = nn.Linear(encoder_output_size, num_labels)
+        self.norm = nn.LayerNorm(hidden_size)
+        self.dropout = nn.Dropout(classifier_dropout_rate)
         self.classifier = nn.Linear(hidden_size, num_labels)
 
     def forward(self, input_ids, attention_mask,ligand_idx):
@@ -107,7 +112,9 @@ class LigandPredictionModel(nn.Module):
         """
         # 1. Get protein representation
         outputs = self.base_model(input_ids=input_ids, attention_mask=attention_mask)
-        protein_repr = outputs.last_hidden_state
+        # protein_repr = outputs.last_hidden_state
+        protein_repr = self.encoder_to_decoder_dropout(outputs.last_hidden_state)
+
         # 2. Retrieve ligand embedding
         ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1)
         # 3. Pass through transformer
@@ -115,7 +122,9 @@ class LigandPredictionModel(nn.Module):
             tgt=protein_repr,
             memory=ligand_repr
         )
-        logits = self.classifier(transformer_output)
+        normalized = self.norm(transformer_output)
+        dropout_output = self.dropout(normalized)
+        logits = self.classifier(dropout_output)
         return logits
 
     def num_parameters(self):

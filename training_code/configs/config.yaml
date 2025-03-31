@@ -1,3 +1,5 @@
+# Experimenting with adding layernorm and dropout between esm and decoder
+
 checkpoints_every: 24
 data_type: TOP-10
 fix_seed: 0
@@ -6,6 +8,7 @@ max_pos_weight: 1
 model:
   backbone_dropout_rate: 0.3
   classifier_dropout_rate: 0.5
+  last_state_dropout_rate: 0.3
   freeze_backbone: true
   freeze_backbone_layers: 30
   freeze_embeddings: true
@@ -64,9 +67,9 @@ transformer_head:
   num_heads: 8
   num_layers: 4
   dim_feedforward: 2048
-  dropout: 0.0
+  dropout: 0.3
 valid_settings:
-  batch_size: 16
+  batch_size: 64
   num_workers: 4
   valid_label_path: ./data/Y01/eval_labels.fasta
   valid_seq_path: ./data/Y01/eval_set.fasta
