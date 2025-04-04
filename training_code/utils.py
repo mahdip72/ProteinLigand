@@ -302,3 +302,18 @@ def visualize_predictions(model, dataloader, device, num_sequences=5):
             f"False Positives: {false_positives}, "
             f"False Negatives: {false_negatives}"
         )
+        
+def apply_random_masking(input_ids, mask_token_id, mask_prob=0.05):
+    """
+    Randomly masks a percentage of tokens with [MASK] (or equivalent ID).
+    Args:
+        input_ids (Tensor): shape [batch_size, seq_len]
+        mask_token_id (int): Token ID used for masking
+        mask_prob (float): Probability of replacing a token with the mask
+    Returns:
+        Tensor: Masked input_ids
+    """
+    mask = torch.full_like(input_ids, mask_prob)
+    rand = torch.rand_like(input_ids, dtype=torch.float)
+    should_mask = (rand < mask) & (input_ids != 0)  
+    return torch.where(should_mask, mask_token_id, input_ids)

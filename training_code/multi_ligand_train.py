@@ -1,12 +1,11 @@
 import os
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
 import argparse
 import yaml
 import torch
 import numpy as np
 from utils import load_configs, prepare_saving_dir, prepare_tensorboard, get_optimizer, get_scheduler, save_checkpoint, \
-    load_checkpoint, visualize_predictions
+    load_checkpoint, visualize_predictions, apply_random_masking
 from multi_ligand_dataset import prepare_dataloaders
 from multi_ligand_model import prepare_model
 import tqdm
@@ -171,6 +170,10 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
         ligand_idx = batch["ligand_idx"].to(device)
+        
+        configs = kwargs.get("configs", None) 
+        mask_prob = configs.mask_prob if configs and hasattr(configs, "mask_prob") else 0
+        inputs = apply_random_masking(inputs, mask_token_id=configs.mask_token_id, mask_prob=mask_prob)
 
         optimizer.zero_grad()
 
@@ -662,7 +665,6 @@ def main(dict_config, config_file_path):
             results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha, gamma=gamma,
                                       label_smoothing=label_smoothing, configs=configs)
         else:
-            load_checkpoint_path = None
             results = evaluation_loop(best_model_state['model'], testloader, device, log_confidences=True, alpha=alpha,
                                   gamma=gamma, label_smoothing=label_smoothing, configs=configs)
 

@@ -32,6 +32,9 @@ class LigandPredictionModel(nn.Module):
         num_ligands = configs.num_ligands
         ligand_embedding_dim = configs.ligand_embedding_size
 
+        # Experimental
+        self.noise_std = configs.noise_std
+
         # 2. Load the pretrained transformer
         config = AutoConfig.from_pretrained(base_model_name)
         config.torch_dtype = "bfloat16"
@@ -114,6 +117,11 @@ class LigandPredictionModel(nn.Module):
         outputs = self.base_model(input_ids=input_ids, attention_mask=attention_mask)
         # protein_repr = outputs.last_hidden_state
         protein_repr = self.encoder_to_decoder_dropout(outputs.last_hidden_state)
+
+        # Experimental: Adding noise to the protein representation as regularization
+        if self.training:
+            noise = torch.randn_like(protein_repr) * self.noise_std
+            protein_repr = protein_repr + noise
 
         # 2. Retrieve ligand embedding
         ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1)

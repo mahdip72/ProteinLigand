@@ -1,4 +1,4 @@
-# Experimenting with adding layernorm and dropout between esm and decoder
+# removed dropout between esm and decoder, experimenting with noise injection value of 0.05
 
 checkpoints_every: 24
 data_type: TOP-10
@@ -8,7 +8,7 @@ max_pos_weight: 1
 model:
   backbone_dropout_rate: 0.3
   classifier_dropout_rate: 0.5
-  last_state_dropout_rate: 0.3
+  last_state_dropout_rate: 0.0
   freeze_backbone: true
   freeze_backbone_layers: 30
   freeze_embeddings: true
@@ -168,6 +168,9 @@ dataset_weight: # square rooted weights
   UDP: 5.503835734486249
   Y01: 6.633960654259577
   ZN: 1.0
+noise_std: 0.05
+mask_prob: 0.10
+mask_token_id: 32
 
 
 
