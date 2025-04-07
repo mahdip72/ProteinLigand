@@ -14,6 +14,7 @@ from torch.amp import GradScaler, autocast
 import torch.nn.functional as F
 from collections import defaultdict
 from sklearn.metrics import f1_score as sk_f1
+import copy
 
 def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0,
                    label_smoothing=0.0, **kwargs):
@@ -165,6 +166,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
     log_interval = max(len(trainloader) // 100, 1)
     mixed_precision = kwargs.get("configs", {}).get("train_settings", {}).get("mixed_precision", "no")
 
+    # For random masking
+    amino_acid_token_ids = trainloader.dataset.get_amino_acid_token_ids()
+
     for i, batch in tqdm.tqdm(enumerate(trainloader), total=len(trainloader), desc=f"Epoch {epoch + 1}", leave=False):
         inputs = batch["input_ids"].to(device)
         attention_mask = batch["attention_mask"].to(device)
@@ -173,9 +177,25 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         
         configs = kwargs.get("configs", None) 
         mask_prob = configs.mask_prob if configs and hasattr(configs, "mask_prob") else 0
-        inputs = apply_random_masking(inputs, mask_token_id=configs.mask_token_id, mask_prob=mask_prob)
 
+        num_epochs = configs.train_settings.num_epochs if configs and hasattr(configs, "num_epochs") else 1
+        # Experimenting with decaying masking
+        # mask_prob = mask_prob * (1 - epoch / num_epochs)
+        # Experimenting with curriculum-style learning with increasing masking
+        mask_prob = mask_prob * (epoch / num_epochs)
+
+        inputs = apply_random_masking(
+            inputs,
+            mask_token_id=configs.mask_token_id,
+            amino_acid_token_ids=amino_acid_token_ids,
+            mask_prob=mask_prob
+        )
         optimizer.zero_grad()
+
+        # TESTING
+        if epoch == 0 and i == 0:
+            print("Original:", batch["input_ids"][0][:30])
+            print("Masked:", inputs[0][:30])
 
         # Mixed precision training
         if mixed_precision == "fp16":
@@ -562,6 +582,11 @@ def main(dict_config, config_file_path):
     visualize = False
     test = True
 
+    if use_checkpoint:
+        load_checkpoint_path = "/home/dc57y/data/2025-04-06__23-37-46__TOP-10/checkpoints/checkpoint_epoch_6.pth"
+    else:
+        load_checkpoint_path = None
+
     configs = load_configs(dict_config)
 
     if isinstance(configs.fix_seed, int):
@@ -594,10 +619,6 @@ def main(dict_config, config_file_path):
     scaler = GradScaler()
     start_epoch = 0
 
-    if use_checkpoint:
-        load_checkpoint_path = "/home/dc57y/data/2025-03-27__17-28-04__TOP-10/checkpoints/checkpoint_epoch_7.pth"
-    else:
-        load_checkpoint_path = None
     if not load_checkpoint_path:
         print("Training without using any checkpoints")
 
@@ -636,26 +657,22 @@ def main(dict_config, config_file_path):
             if save_best_checkpoint_only:
                 if macro_f1 > best_f1:
                     best_f1 = macro_f1
-                    best_epoch = epoch
                     best_model_state = {
-                        'model': model,
-                        'optimizer': optimizer,
-                        'scheduler': scheduler,
-                        'scaler': scaler,
+                        'model': copy.deepcopy(model.state_dict()),
+                        'optimizer': copy.deepcopy(optimizer.state_dict()),
+                        'scheduler': copy.deepcopy(scheduler.state_dict()),
+                        'scaler': copy.deepcopy(scaler.state_dict()),
                         'epoch': epoch
                     }
             else:
                 if (epoch + 1) % checkpoint_every == 0:
                     save_checkpoint(model, optimizer, scheduler, scaler, epoch, checkpoint_path)
         if save_best_checkpoint_only and best_f1 > -1:
-            save_checkpoint(
-                best_model_state['model'],
-                best_model_state['optimizer'],
-                best_model_state['scheduler'],
-                best_model_state['scaler'],
-                best_model_state['epoch'],
-                checkpoint_path
-            )
+            model.load_state_dict(best_model_state['model'])
+            optimizer.load_state_dict(best_model_state['optimizer'])
+            scheduler.load_state_dict(best_model_state['scheduler'])
+            scaler.load_state_dict(best_model_state['scaler'])
+            save_checkpoint(model, optimizer, scheduler, scaler, best_model_state['epoch'], checkpoint_path)
         print(f"Best Validation Macro F1 Score: {best_f1:.4f}")
 
     if test:
@@ -665,7 +682,9 @@ def main(dict_config, config_file_path):
             results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha, gamma=gamma,
                                       label_smoothing=label_smoothing, configs=configs)
         else:
-            results = evaluation_loop(best_model_state['model'], testloader, device, log_confidences=True, alpha=alpha,
+            print("Evaluating test dataset with the model at epoch ", best_model_state['epoch'])
+            # model.load_state_dict(best_model_state['model'])
+            results = evaluation_loop(model, testloader, device, log_confidences=True, alpha=alpha,
                                   gamma=gamma, label_smoothing=label_smoothing, configs=configs)
 
 
