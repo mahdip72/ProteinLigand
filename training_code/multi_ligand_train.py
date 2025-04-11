@@ -180,9 +180,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
 
         num_epochs = configs.train_settings.num_epochs if configs and hasattr(configs, "num_epochs") else 1
         # Experimenting with decaying masking
-        # mask_prob = mask_prob * (1 - epoch / num_epochs)
+        mask_prob = mask_prob * (1 - epoch / num_epochs)
         # Experimenting with curriculum-style learning with increasing masking
-        mask_prob = mask_prob * (epoch / num_epochs)
+        # mask_prob = mask_prob * (epoch / num_epochs)
 
         inputs = apply_random_masking(
             inputs,

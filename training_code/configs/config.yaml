@@ -14,6 +14,7 @@ model:
   freeze_embeddings: true
   hidden_size: 1280
   model_name: facebook/esm2_t33_650M_UR50D
+  use_chemical_encoder: True
 num_ligands: 10
 optimizer:
   beta_1: 0.9
@@ -58,7 +59,7 @@ train_settings:
   label_smoothing: 0.0
   max_sequence_length: 768
   mixed_precision: bf16
-  num_epochs: 12
+  num_epochs: 24
   num_workers: 4
   shuffle: true
   train_label_path: ./data/Y01/train_labels.fasta
@@ -168,7 +169,7 @@ dataset_weight: # square rooted weights
   UDP: 5.503835734486249
   Y01: 6.633960654259577
   ZN: 1.0
-noise_std: 0.00 # experimental results show 0.05 works best
+noise_std: 0.05 # experimental results show 0.05 works best
 mask_prob: 0.15
 mask_token_id: 32
 

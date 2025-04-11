@@ -31,14 +31,30 @@ class LigandPredictionModel(nn.Module):
         esm_to_decoder_dropout_rate = configs.model.last_state_dropout_rate
         num_ligands = configs.num_ligands
         ligand_embedding_dim = configs.ligand_embedding_size
-
-        # Experimental
+        # If true, use chemical encoder for ligand representation, else use embedding table
+        self.use_chemical_encoder = configs.model.use_chemical_encoder
+        # noise added to the ESM2 protein representation
         self.noise_std = configs.noise_std
 
         # 2. Load the pretrained transformer
         config = AutoConfig.from_pretrained(base_model_name)
         config.torch_dtype = "bfloat16"
         self.base_model = AutoModel.from_pretrained(base_model_name, config=config)
+        # option to load structure-aware model
+        structure_aware = configs.model.structure_aware
+        if structure_aware:
+            checkpoint_path = "/home/dc57y/data/checkpoint_60.pth"
+            checkpoint = torch.load(checkpoint_path, map_location='cpu')["model_state_dict"]
+
+            # remove '_orig_mod.protein_encoder.model.' from the keys
+            checkpoint = {
+                k.replace('_orig_mod.protein_encoder.model.', ''): v
+                for k, v in checkpoint.items()
+            }
+
+            load_report = self.base_model.load_state_dict(checkpoint, strict=False)
+            print("Loaded structure-aware weights")
+            print("Load report:", load_report)
 
         # 3. Freeze backbone if requested
         if freeze_backbone:
@@ -72,9 +88,17 @@ class LigandPredictionModel(nn.Module):
         # Final dropout layer for the last hidden state
         self.encoder_to_decoder_dropout = nn.Dropout(esm_to_decoder_dropout_rate)
 
-        # 4. Ligand Embedding Table
-        # self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=ligand_embedding_dim)
-        self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=hidden_size) # Testing with matching embedding and hidden size
+        # 4. Ligand Embedding Table // Chemical Encoder
+        if not self.use_chemical_encoder:
+            # self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=ligand_embedding_dim)
+            self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=hidden_size) # Testing with matching embedding and hidden size
+        else:
+            self.smiles_tokenizer = AutoTokenizer.from_pretrained(
+                "ibm-research/MoLFormer-XL-both-10pct", trust_remote_code=True)
+            self.smiles_tokenizer.pad_token = "<pad>"
+            self.smiles_tokenizer.bos_token = "<s>"
+            self.smiles_tokenizer.eos_token = "</s>"
+            self.smiles_tokenizer.mask_token = "<unk>"
 
         # 5. Transformer Head with Cross-Attention
         num_heads = configs.transformer_head.num_heads

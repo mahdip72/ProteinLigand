@@ -96,6 +96,19 @@ class LigandDataset(Dataset):
             "ligand_idx": entry["ligand_idx"]
         }
 
+    def get_amino_acid_token_ids(self):
+        vocab = self.tokenizer.get_vocab()
+        special_ids = self.tokenizer.all_special_ids if hasattr(self.tokenizer, "all_special_ids") else [
+            self.tokenizer.pad_token_id, self.tokenizer.mask_token_id]
+        return [v for k, v in vocab.items() if v not in special_ids]
+
+    # For testing
+    def print_tokenizer_vocab(self):
+        vocab = self.tokenizer.get_vocab()
+        sorted_vocab = sorted(vocab.items(), key=lambda x: x[1])  # sort by token ID
+        for token, token_id in sorted_vocab:
+            print(f"{token_id:>4}: {token}")
+
 
 def prepare_dataloaders(configs, debug=False, debug_subset_size=None):
     """
@@ -255,3 +268,5 @@ if __name__ == '__main__':
             ligand_name = idx2ligand[ligand]
             print(f"{ligand_name} (index {ligand}): {count} samples")
         print("==========================================\n")
+
+        train_loader.dataset.print_tokenizer_vocab()
