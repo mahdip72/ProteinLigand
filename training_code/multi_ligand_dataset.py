@@ -11,6 +11,12 @@ def build_ligand2idx(ligand_names):
     """
     return {ligand: idx for idx, ligand in enumerate(sorted(set(ligand_names)))}
 
+def idx2ligand(ligand_names):
+    """
+    Takes a list of ligand names and returns {index: ligand_name} dictionary.
+    """
+    return {idx: ligand for idx, ligand in enumerate(sorted(set(ligand_names)))}
+
 
 def read_fasta(file_path):
     """
@@ -263,7 +269,7 @@ if __name__ == '__main__':
         ligand_list = configs.ligands
         print(ligand_list)
         ligand2idx = build_ligand2idx(ligand_list)
-        idx2ligand = {v: k for k, v in ligand2idx.items()}
+        idx2ligand = idx2ligand(ligand_list)
         for ligand, count in ligand_counter.items():
             ligand_name = idx2ligand[ligand]
             print(f"{ligand_name} (index {ligand}): {count} samples")
