@@ -7,4 +7,4 @@ tqdm
 box
 scikit-learn
 tensorboard
-
+python-box
