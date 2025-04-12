@@ -277,9 +277,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
 
 
     if verbose and train_writer:
+        train_writer.add_scalar("Macro_F1", macro_f1, epoch)
         for lig_id, f1 in ligand_f1s.items():
             lig_name = idx_to_ligand.get(lig_id, f"Ligand_{lig_id}")
-            train_writer.add_scalar("Macro_F1", macro_f1, epoch)
             train_writer.add_scalar(f"Ligand_F1/{lig_name}", f1, epoch)
 
     if verbose:
