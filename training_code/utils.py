@@ -146,6 +146,8 @@ def prepare_saving_dir(configs, config_file_path, save_to_data=False):
     # Copy the config file to the result directory.
     shutil.copy(config_file_path, result_path)
 
+    print("Created saving directory: ", result_path)
+
     return result_path, checkpoint_path
 
 def save_checkpoint(model, optimizer, scheduler, scaler, epoch, checkpoint_path):
@@ -303,17 +305,38 @@ def visualize_predictions(model, dataloader, device, num_sequences=5):
             f"False Negatives: {false_negatives}"
         )
         
-def apply_random_masking(input_ids, mask_token_id, mask_prob=0.05):
+import torch
+
+def apply_random_masking(input_ids, mask_token_id, amino_acid_token_ids, mask_prob=0.05):
     """
-    Randomly masks a percentage of tokens with [MASK] (or equivalent ID).
+    Apply ESM-style masked language modeling:
+    - Randomly mask `mask_prob`% of tokens in the sequence (excluding padding).
+    - Of the selected tokens:
+        - 80% replaced with [MASK]
+        - 10% replaced with a random amino acid token
+        - 10% left unchanged
     Args:
-        input_ids (Tensor): shape [batch_size, seq_len]
-        mask_token_id (int): Token ID used for masking
-        mask_prob (float): Probability of replacing a token with the mask
+        input_ids (Tensor): [batch_size, seq_len]
+        mask_token_id (int): Token ID for [MASK]
+        amino_acid_token_ids (List[int]): Valid token IDs for amino acids (excluding special tokens)
+        mask_prob (float): Probability of masking a token (default 0.15, like ESM)
     Returns:
-        Tensor: Masked input_ids
+        Tensor: masked input_ids
     """
-    mask = torch.full_like(input_ids, mask_prob)
+    device = input_ids.device
     rand = torch.rand_like(input_ids, dtype=torch.float)
-    should_mask = (rand < mask) & (input_ids != 0)  
-    return torch.where(should_mask, mask_token_id, input_ids)
+    mask_selector = (rand < mask_prob) & (input_ids != 0)
+
+    masked_input = input_ids.clone()
+    rand_for_strategy = torch.rand_like(input_ids, dtype=torch.float)
+
+    mask_mask = (rand_for_strategy < 0.8) & mask_selector
+    masked_input[mask_mask] = mask_token_id
+
+    rand_mask = ((rand_for_strategy >= 0.8) & (rand_for_strategy < 0.9)) & mask_selector
+    random_tokens = torch.randint(len(amino_acid_token_ids), rand_mask.shape, device=device)
+    masked_input[rand_mask] = torch.tensor(amino_acid_token_ids, device=device)[random_tokens[rand_mask]]
+
+    # Leave 10% unchanged (no need to modify masked_input)
+
+    return masked_input
