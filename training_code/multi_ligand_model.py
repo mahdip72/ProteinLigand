@@ -3,6 +3,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 import torch
 from torch import nn
+from multi_ligand_dataset import idx2ligand
 
 class LigandPredictionModel(nn.Module):
     def __init__(self, configs, num_labels=1):
@@ -23,14 +24,15 @@ class LigandPredictionModel(nn.Module):
         # 1. Read from configs
         base_model_name = configs.model.model_name
         hidden_size = configs.model.hidden_size
+        dtype = configs.model.dtype
         freeze_backbone = configs.model.freeze_backbone
         freeze_embeddings = configs.model.freeze_embeddings
-        freeze_backbone_layers = configs.model.freeze_backbone_layers
+        num_unfrozen_layers = configs.model.num_unfrozen_layers
         classifier_dropout_rate = configs.model.classifier_dropout_rate
         backbone_dropout_rate = configs.model.backbone_dropout_rate
         esm_to_decoder_dropout_rate = configs.model.last_state_dropout_rate
         num_ligands = configs.num_ligands
-        ligand_embedding_dim = configs.ligand_embedding_size
+        ligand_names = configs.ligands
         # If true, use chemical encoder for ligand representation, else use embedding table
         self.use_chemical_encoder = configs.model.use_chemical_encoder
         # noise added to the ESM2 protein representation
@@ -38,8 +40,9 @@ class LigandPredictionModel(nn.Module):
 
         # 2. Load the pretrained transformer
         config = AutoConfig.from_pretrained(base_model_name)
-        config.torch_dtype = "bfloat16"
+        config.torch_dtype = dtype
         self.base_model = AutoModel.from_pretrained(base_model_name, config=config)
+        num_total_layers = len(self.base_model.encoder.layer)
         # option to load structure-aware model
         structure_aware = configs.model.structure_aware
         if structure_aware:
@@ -54,7 +57,7 @@ class LigandPredictionModel(nn.Module):
 
             load_report = self.base_model.load_state_dict(checkpoint, strict=False)
             print("Loaded structure-aware weights")
-            print("Load report:", load_report)
+            # print("Load report:", load_report)
 
         # 3. Freeze backbone if requested
         if freeze_backbone:
@@ -64,7 +67,7 @@ class LigandPredictionModel(nn.Module):
                     param.requires_grad = False
                 # Unfreeze layers
                 for i, layer in enumerate(self.base_model.encoder.layer):
-                    if i >= freeze_backbone_layers:
+                    if i >= num_total_layers - num_unfrozen_layers:
                         for param in layer.parameters():
                             param.requires_grad = True
                         # add dropout to unfrozen backbone layers
@@ -72,11 +75,10 @@ class LigandPredictionModel(nn.Module):
                         layer.attention.output.dropout = nn.Dropout(backbone_dropout_rate)
                         layer.intermediate.dropout = nn.Dropout(backbone_dropout_rate)
                         layer.output.dropout = nn.Dropout(backbone_dropout_rate)
-                        # print("Unfreezing layer", i+i)
             else:
                 # Freeze requested layers and leave embeddings
                 for i, layer in enumerate(self.base_model.encoder.layer):
-                    if i < freeze_backbone_layers:
+                    if i < num_total_layers - num_unfrozen_layers:
                         for param in layer.parameters():
                             param.requires_grad = False
                     else:
@@ -89,16 +91,43 @@ class LigandPredictionModel(nn.Module):
         self.encoder_to_decoder_dropout = nn.Dropout(esm_to_decoder_dropout_rate)
 
         # 4. Ligand Embedding Table // Chemical Encoder
-        if not self.use_chemical_encoder:
-            # self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=ligand_embedding_dim)
-            self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=hidden_size) # Testing with matching embedding and hidden size
-        else:
+        if not self.use_chemical_encoder: # Use embedding table
+            # Potentially could experiment with variable embedding_dim size
+            print("Using embedding table for ligand representation")
+            self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=hidden_size)
+        else: # Use chemical encoder
+            print("Using chemical encoder for ligand representation")
             self.smiles_tokenizer = AutoTokenizer.from_pretrained(
                 "ibm-research/MoLFormer-XL-both-10pct", trust_remote_code=True)
             self.smiles_tokenizer.pad_token = "<pad>"
             self.smiles_tokenizer.bos_token = "<s>"
             self.smiles_tokenizer.eos_token = "</s>"
             self.smiles_tokenizer.mask_token = "<unk>"
+            clm_config = AutoConfig.from_pretrained("ibm-research/MoLFormer-XL-both-10pct", trust_remote_code=True)
+            clm_config.torch_dtype = dtype
+            clm_hidden_dropout = configs.model.clm_hidden_dropout_rate if configs.model.clm_hidden_dropout_rate else 0.0
+            clm_embedding_dropout = configs.model.clm_embedding_dropout_rate if configs.model.clm_embedding_dropout_rate else 0.0
+            clm_config.hidden_dropout_prob = clm_hidden_dropout
+            clm_config.embedding_dropout_prob = clm_embedding_dropout
+            self.smiles_model = AutoModel.from_pretrained(
+                "ibm-research/MoLFormer-XL-both-10pct",
+                config=clm_config,
+                trust_remote_code=True
+            )
+
+            # Freeze everything by default (including embeddings)
+            for param in self.smiles_model.parameters():
+                param.requires_grad = False
+
+            last_n = configs.model.chemical_encoder_num_unfrozen_layers if hasattr(configs.model, "chemical_encoder_num_unfrozen_layers") else 0
+            for param in self.smiles_model.encoder.layer[-last_n:].parameters():
+                param.requires_grad = True
+            self.clm_max_length = configs.model.clm_max_length
+            clm_output_dim = configs.model.clm_output_dim
+            self.ligand_to_smiles = configs.ligand_to_smiles
+            self.idx_to_ligand = idx2ligand(ligand_names)
+            # Add projector to match hidden size
+            self.projector = nn.Linear(clm_output_dim, hidden_size)
 
         # 5. Transformer Head with Cross-Attention
         num_heads = configs.transformer_head.num_heads
@@ -147,13 +176,33 @@ class LigandPredictionModel(nn.Module):
             noise = torch.randn_like(protein_repr) * self.noise_std
             protein_repr = protein_repr + noise
 
-        # 2. Retrieve ligand embedding
-        ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1)
+        # 2. Retrieve ligand representation
+        if self.use_chemical_encoder:
+            ligand_names = [self.idx_to_ligand[i.item()] for i in ligand_idx]
+            smiles_batch = [self.ligand_to_smiles[name] for name in ligand_names]
+            encoded = self.smiles_tokenizer(smiles_batch,
+                                            max_length=self.clm_max_length,
+                                            padding='max_length',
+                                            truncation=True,
+                                            return_tensors="pt",
+                                            add_special_tokens=True).to(input_ids.device)
+            ligand_hidden = self.smiles_model(**encoded).last_hidden_state
+            ligand_repr = self.projector(ligand_hidden)
+        else:
+            ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1)
         # 3. Pass through transformer
-        transformer_output = self.transformer_decoder(
-            tgt=protein_repr,
-            memory=ligand_repr
-        )
+        if self.use_chemical_encoder:
+            memory_key_padding_mask = encoded["attention_mask"] == 0  # pass in padding mask
+            transformer_output = self.transformer_decoder(
+                tgt=protein_repr,
+                memory=ligand_repr,
+                memory_key_padding_mask=memory_key_padding_mask
+            )
+        else:
+            transformer_output = self.transformer_decoder(
+                tgt=protein_repr,
+                memory=ligand_repr
+            )
         normalized = self.norm(transformer_output)
         dropout_output = self.dropout(normalized)
         logits = self.classifier(dropout_output)
@@ -210,16 +259,13 @@ if __name__ == '__main__':
     model.to(device)
 
     # Define a sample amino acid sequence
-    # randomly generated protein sequence, not really sure if it's valid
     sequence = "MVLSPADKTNVKAAWGKVGAHAGEY"
     labels = torch.tensor([[0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]], dtype=torch.long)
 
-
     # Tokenize the input sequence
-    inputs = tokenizer(sequence, return_tensors="pt", padding=True, truncation=True, max_length=64, add_special_tokens=True)
+    inputs = tokenizer(sequence, return_tensors="pt", padding=True, truncation=True, max_length=64, add_special_tokens=False)
     inputs = {key: val.to(device) for key, val in inputs.items()}
     labels = labels.to(device)
-
 
     # Forward pass through the model
     with torch.no_grad():  # Disable gradient computation for inference
@@ -236,18 +282,42 @@ if __name__ == '__main__':
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"]
         )
-        print(f"\n[2] ESM2 Output Shape: {outputs.last_hidden_state.shape}")
+        protein_repr = outputs.last_hidden_state
+        print(f"\n[2] ESM2 Protein Representation Shape: {protein_repr.shape}")
 
-        # Step 3: Ligand embedding
-        ligand_repr = model.ligand_embedding(ligand_idx).unsqueeze(1)
-        print(f"\n[3] Ligand Embedding Shape: {ligand_repr.shape}")
-        print(f"[3.1] Ligand Embedding Vector: {ligand_repr.squeeze(1).cpu().numpy()}")
+        # Step 3: Ligand Representation
+        if model.use_chemical_encoder:
+            # Map ligand_idx to SMILES
+            ligand_name = model.idx_to_ligand[ligand_idx.item()]
+            smiles = model.ligand_to_smiles[ligand_name]
+            print(f"\n[3] Ligand Name: {ligand_name}")
+            print(f"[3.1] SMILES: {smiles}")
+
+            # Tokenize SMILES
+            encoded = model.smiles_tokenizer([smiles], max_length=model.clm_max_length, padding="max_length", truncation=True, return_tensors="pt").to(device)
+            ligand_hidden = model.smiles_model(**encoded).last_hidden_state
+            ligand_repr = model.projector(ligand_hidden)
+
+            print(f"[3.2] CLM Embedding Shape: {ligand_repr.shape}")
+
+            memory_key_padding_mask = encoded["attention_mask"] == 0
+            transformer_output = model.transformer_decoder(
+                tgt=protein_repr,
+                memory=ligand_repr,
+                memory_key_padding_mask=memory_key_padding_mask
+            )
+
+        else:
+            ligand_repr = model.ligand_embedding(ligand_idx).unsqueeze(1)
+            print(f"\n[3] Ligand Embedding Shape: {ligand_repr.shape}")
+            print(f"[3.1] Ligand Embedding Vector: {ligand_repr.squeeze(1).cpu().numpy()}")
+
+            transformer_output = model.transformer_decoder(
+                tgt=protein_repr,
+                memory=ligand_repr
+            )
 
         # Step 4: Transformer Decoder (cross-attention)
-        transformer_output = model.transformer_decoder(
-            tgt=outputs.last_hidden_state,
-            memory=ligand_repr
-        )
         print(f"\n[4] Transformer Decoder Output Shape: {transformer_output.shape}")
 
         # Step 5: Final Classification
