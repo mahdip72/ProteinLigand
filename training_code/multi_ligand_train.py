@@ -6,7 +6,7 @@ import torch
 import numpy as np
 from utils import load_configs, prepare_saving_dir, prepare_tensorboard, get_optimizer, get_scheduler, save_checkpoint, \
     load_checkpoint, visualize_predictions, apply_random_masking
-from multi_ligand_dataset import prepare_dataloaders
+from multi_ligand_dataset import prepare_dataloaders, idx2ligand
 from multi_ligand_model import prepare_model
 import tqdm
 import torchmetrics
@@ -161,6 +161,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
     # for keeping track of individual ligand predictions
     if verbose:
         ligand_preds_labels = defaultdict(list)
+        configs = kwargs.get("configs", None)
+        ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
+        idx_to_ligand = idx2ligand(ligand_names)
 
     # For logging within each epoch instead of just once every epoch since each epoch takes a long time, logging 100 times per epoch
     log_interval = max(len(trainloader) // 100, 1)
@@ -174,7 +177,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
         ligand_idx = batch["ligand_idx"].to(device)
-        
+
         configs = kwargs.get("configs", None) 
         mask_prob = configs.mask_prob if configs and hasattr(configs, "mask_prob") else 0
 
@@ -191,11 +194,6 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
             mask_prob=mask_prob
         )
         optimizer.zero_grad()
-
-        # TESTING
-        if epoch == 0 and i == 0:
-            print("Original:", batch["input_ids"][0][:30])
-            print("Masked:", inputs[0][:30])
 
         # Mixed precision training
         if mixed_precision == "fp16":
@@ -268,7 +266,6 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
                 f1 = sk_f1(y_true, y_pred, zero_division=0)
                 ligand_f1s[lig_id] = f1
                 all_f1s.append(f1)
-
         macro_f1 = np.mean(all_f1s) if all_f1s else 0.0
 
     if train_writer:
@@ -280,11 +277,8 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
 
 
     if verbose and train_writer:
-        configs = kwargs.get("configs", None)
-        ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
-        ligand2name = {i: name for i, name in enumerate(ligand_names)}
         for lig_id, f1 in ligand_f1s.items():
-            lig_name = ligand2name.get(lig_id, f"Ligand_{lig_id}")
+            lig_name = idx_to_ligand.get(lig_id, f"Ligand_{lig_id}")
             train_writer.add_scalar("Macro_F1", macro_f1, epoch)
             train_writer.add_scalar(f"Ligand_F1/{lig_name}", f1, epoch)
 
@@ -319,7 +313,11 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     valid_loss = 0.0
     smoothed_pos_weight = None
 
-    ligand_preds_labels = defaultdict(list)
+    if verbose:
+        ligand_preds_labels = defaultdict(list)
+        configs = kwargs.get("configs", None)
+        ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
+        idx_to_ligand = idx2ligand(ligand_names)
 
     for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc=f"Validation Epoch {epoch + 1}",
                               leave=False):
@@ -354,14 +352,15 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
             accuracy.update(predictions.view(-1), labels.view(-1))
             f1_score.update(predictions.view(-1), labels.view(-1))
 
-            for b in range(batch_size):
-                for t in range(seq_len):
-                    if attention_mask[b][t]:
-                        lig = int(ligand_idx[b].item())
-                        ligand_preds_labels[lig].append((
-                            predictions[b][t].item(),
-                            labels[b][t].item()
-                        ))
+            if verbose:
+                for b in range(batch_size):
+                    for t in range(seq_len):
+                        if attention_mask[b][t]:
+                            lig = int(ligand_idx[b].item())
+                            ligand_preds_labels[lig].append((
+                                predictions[b][t].item(),
+                                labels[b][t].item()
+                            ))
 
     avg_valid_loss = valid_loss / len(testloader)
     valid_acc = accuracy.compute().cpu().item()
@@ -370,16 +369,16 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     accuracy.reset()
     f1_score.reset()
 
-    ligand_f1s = {}
-    all_f1s = []
-    for lig_id, pairs in ligand_preds_labels.items():
-        if pairs:
-            y_pred, y_true = zip(*pairs)
-            f1 = sk_f1(y_true, y_pred, zero_division=0)
-            ligand_f1s[lig_id] = f1
-            all_f1s.append(f1)
-
-    macro_f1 = np.mean(all_f1s) if all_f1s else 0.0
+    if verbose:
+        ligand_f1s = {}
+        all_f1s = []
+        for lig_id, pairs in ligand_preds_labels.items():
+            if pairs:
+                y_pred, y_true = zip(*pairs)
+                f1 = sk_f1(y_true, y_pred, zero_division=0)
+                ligand_f1s[lig_id] = f1
+                all_f1s.append(f1)
+        macro_f1 = np.mean(all_f1s) if all_f1s else 0.0
 
     if valid_writer:
         valid_writer.add_scalar("Loss", avg_valid_loss, epoch)
@@ -390,11 +389,8 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     print(f"Epoch: {epoch}, Validation Accuracy: {100 * valid_acc:.2f}%, All-Sites F1 Score: {valid_f1:.4f}, Macro F1: {macro_f1:.4f}")
 
     if verbose:
-        configs = kwargs.get("configs", None)
-        ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
-        ligand2name = {i: name for i, name in enumerate(ligand_names)}
         for lig_id, f1 in ligand_f1s.items():
-            lig_name = ligand2name.get(lig_id, f"Ligand_{lig_id}")
+            lig_name = idx_to_ligand.get(lig_id, f"Ligand_{lig_id}")
             print(f"  {lig_name}: F1 = {f1:.4f}")
             if valid_writer:
                 valid_writer.add_scalar(f"Ligand_F1/{lig_name}", f1, epoch)
@@ -435,8 +431,10 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
     false_negative_confidences = [] if log_confidences else None
     smoothed_pos_weight = None
 
-    from collections import defaultdict
     ligand_preds_labels = defaultdict(list)
+    configs = kwargs.get("configs", None)
+    ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
+    idx_to_ligand = idx2ligand(ligand_names)
 
     for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc="Testing Model"):
         inputs = batch["input_ids"].to(device)
@@ -537,19 +535,13 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
         print(f"Top 10 Incorrect Confidence Scores: {sorted(incorrect_confidences, reverse=True)[:10]}")
 
     print("\n=== F1 Score Per Ligand ===")
-    configs = kwargs.get("configs", None)
-    if configs and hasattr(configs, "ligands"):
-        ligand_names = configs.ligands
-    else:
-        ligand_names = []
-    ligand2name = {i: name for i, name in enumerate(ligand_names)}
 
     ligand_f1s = []
     for ligand_idx, pairs in ligand_preds_labels.items():
         preds, labels = zip(*pairs)
         f1 = sk_f1(labels, preds, zero_division=0)
         ligand_f1s.append(f1)
-        name = ligand2name.get(ligand_idx, str(ligand_idx))
+        name = idx_to_ligand.get(ligand_idx, str(ligand_idx))
         print(f"{name}: F1 = {f1:.4f} ({len(pairs)} classification points)")
 
     if ligand_f1s:
