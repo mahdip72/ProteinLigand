@@ -128,6 +128,7 @@ class LigandPredictionModel(nn.Module):
             self.idx_to_ligand = idx2ligand(ligand_names)
             # Add projector to match hidden size
             self.projector = nn.Linear(clm_output_dim, hidden_size)
+            self.proj_layernorm = nn.LayerNorm(hidden_size)
 
         # 5. Transformer Head with Cross-Attention
         num_heads = configs.transformer_head.num_heads
@@ -187,7 +188,7 @@ class LigandPredictionModel(nn.Module):
                                             return_tensors="pt",
                                             add_special_tokens=True).to(input_ids.device)
             ligand_hidden = self.smiles_model(**encoded).last_hidden_state
-            ligand_repr = self.projector(ligand_hidden)
+            ligand_repr = self.proj_layernorm(self.projector(ligand_hidden))
         else:
             ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1)
         # 3. Pass through transformer

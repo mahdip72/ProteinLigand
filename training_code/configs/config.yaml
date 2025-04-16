@@ -1,6 +1,7 @@
 checkpoints_every: 24
 data_type: TOP-10
 fix_seed: 0
+use_plinder_dataset: true
 max_pos_weight: 1
 model:
   backbone_dropout_rate: 0.3
@@ -14,9 +15,9 @@ model:
   structure_aware: true
   dtype: "bfloat16"
   # chemical encoder configs
-  use_chemical_encoder: true
+  use_chemical_encoder: false
   chemical_encoder_num_unfrozen_layers: 3
-  clm_max_length: 128
+  clm_max_length: 128 # TODO - experiment
   clm_output_dim: 768
   clm_hidden_dropout_rate: 0.1
   clm_embedding_dropout_rate: 0.0
@@ -63,7 +64,7 @@ train_settings:
   grad_accumulation: 4
   grad_clip_norm: 1
   label_smoothing: 0.0
-  max_sequence_length: 768
+  max_sequence_length: 768 #768
   mixed_precision: bf16
   num_epochs: 24
   num_workers: 4
@@ -96,47 +97,7 @@ ligands:
   - NAP
   - ZN
 dataset_weight: # square rooted weights
-#  ACO: 43.19444444444444
-#  ADP: 4.95749202975558
-#  AGS: 34.3014705882353
-#  AMP: 16.963636363636365
-#  ANP: 13.177966101694915
-#  ATP: 6.860294117647059
-#  BGC: 14.093655589123868
-#  BMA: 29.525316455696203
-#  CA: 1.5330266184686165
-#  CLA: 13.640350877192983
-#  CLR: 26.505681818181817
-#  CO: 29.15625
-#  COA: 18.01158301158301
-#  CU: 14.093655589123868
-#  FAD: 5.654545454545454
-#  FE: 8.768796992481203
-#  FE2: 25.080645161290324
-#  FES: 17.15073529411765
-#  FMN: 10.675057208237986
-#  GAL: 20.021459227467812
-#  GDP: 13.761061946902656
-#  GLC: 10.275330396475772
-#  GSH: 23.325
-#  GTP: 31.1
-#  HEC: 17.670454545454547
-#  HEM: 5.520710059171598
-#  MAN: 10.459641255605382
-#  MG: 1.5808200609962724
-#  MN: 5.91254752851711
-#  NAD: 7.089665653495441
-#  NAP: 10.097402597402597
-#  NDP: 19.19753086419753
-#  PLP: 12.374005305039788
-#  PO4: 12.341269841269842
-#  SAH: 11.900510204081632
-#  SAM: 21.799065420560748
-#  SF4: 9.165029469548134
-#  SO4: 21.39908256880734
-#  UDP: 30.292207792207794
-#  Y01: 44.009433962264154
-#  ZN: 1.0
+  # For BIOLIP
   ACO: 6.572248051043451
   ADP: 2.226542617996696
   AGS: 5.856745733616519
@@ -178,6 +139,19 @@ dataset_weight: # square rooted weights
   UDP: 5.503835734486249
   Y01: 6.633960654259577
   ZN: 1.0
+dataset_weight_plinder:
+  # For PLINDER
+  ADP: 1.2817
+  ATP: 1.4135
+  CA: 2.7592
+  CLA: 3.8928
+  FAD: 1.542
+  HEM: 1.0
+  MG: 1.0515
+  NAD: 1.4876
+  NAP: 1.6737
+  ZN: 2.1242
+
 ligand_to_smiles:
   ACO: "CC(=O)SCCNC(=O)CCNC(=O)[C@@H](C(C)(C)CO[P@](=O)(O)O[P@@](=O)(O)OC[C@@H]1[C@H]([C@H]([C@@H](O1)n2cnc3c2ncnc3N)O)OP(=O)(O)O"
   ADP: "c1nc(c2c(n1)n(cn2)[C@H]3[C@@H]([C@@H]([C@H](O3)CO[P@](=O)(O)OP(=O)(O)O)O)O)N"

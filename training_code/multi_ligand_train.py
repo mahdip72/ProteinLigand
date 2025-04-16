@@ -105,7 +105,10 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
     # ========================
     if configs and hasattr(configs, 'ligands') and hasattr(configs, 'dataset_weight') and ligand_idx is not None:
         ligand_names = configs.ligands
-        dataset_weight = configs.dataset_weight
+        if configs.use_plinder_dataset:
+            dataset_weight = configs.dataset_weight_plinder
+        else:
+            dataset_weight = configs.dataset_weight
 
         # Get weights for each sample in the batch
         batch_ligand_weights = torch.tensor([
@@ -146,7 +149,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         scheduler: Learning rate scheduler.
         train_writer: TensorBoard writer for logging.
         grad_clip_norm: Gradient clipping value.
-        verbose: (bool): If True, logs individual and macro ligand F1 scores in TensorBoard. // (Makes training around twice as slow)
+        verbose: (bool): If True, logs individual and macro ligand F1 scores in TensorBoard. // (Makes training around twice as slow, use for debugging)
         kwargs: Additional parameters.
     """
     accuracy = torchmetrics.Accuracy(task="binary")
@@ -585,7 +588,8 @@ def main(dict_config, config_file_path):
         torch.manual_seed(configs.fix_seed)
         np.random.seed(configs.fix_seed)
 
-    dataloaders = prepare_dataloaders(configs)
+    use_plinder = configs.use_plinder_dataset
+    dataloaders = prepare_dataloaders(configs, use_precompiled_data=use_plinder)
     # dataloaders = prepare_dataloaders(configs, debug=True, debug_subset_size=50)
 
     trainloader = dataloaders["train"]
@@ -638,9 +642,9 @@ def main(dict_config, config_file_path):
         for epoch in range(start_epoch, num_epochs):
             training_loss, training_f1 = training_loop(model, trainloader, optimizer, epoch, device, scaler, scheduler,
                                                        train_writer=train_writer, grad_clip_norm=grad_clip_norm,
-                                                       alpha=alpha,
-                                                       gamma=gamma, label_smoothing=label_smoothing,
-                                                       configs=configs)
+                                                       alpha=alpha,gamma=gamma,
+                                                       label_smoothing=label_smoothing, verbose=False,
+                                                       configs=configs) # TODO: Change verbose back to False eventually
 
             valid_loss, _, macro_f1 = validation_loop(model, validloader, epoch, device, valid_writer=valid_writer,
                                                    alpha=alpha, gamma=gamma, configs=configs,

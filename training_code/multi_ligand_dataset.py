@@ -41,7 +41,7 @@ def read_fasta(file_path):
 
 
 class LigandDataset(Dataset):
-    def __init__(self, ligand_list, data_root, tokenizer, ligand2idx, split="train", max_length=512, subset_size=None):
+    def __init__(self, ligand_list, data_root, tokenizer, ligand2idx, split="train", max_length=512, subset_size=None, use_precompiled_data = False):
         """
         Args:
             ligand_list (list): List of ligand names like ["ADP", "ATP", ...]
@@ -50,6 +50,8 @@ class LigandDataset(Dataset):
             ligand2idx (dict): Mapping from ligand name to index.
             split (str): One of 'train', 'eval', or 'test'.
             max_length (int): Max sequence length.
+            subset_size (int): If provided, randomly samples this many entries from the dataset.
+            use_precompiled_data (bool): If True, uses precompiled data CSV file instead of FASTA files.
         """
 
         self.data = []
@@ -57,22 +59,48 @@ class LigandDataset(Dataset):
         self.max_length = max_length
         self.ligand2idx = ligand2idx
 
-        for ligand in ligand_list:
-            ligand_dir = os.path.join(data_root, ligand)
-            seq_file = os.path.join(ligand_dir, f"{split}_set.fasta")
-            label_file = os.path.join(ligand_dir, f"{split}_labels.fasta")
+        if not use_precompiled_data:
+            for ligand in ligand_list:
+                ligand_dir = os.path.join(data_root, ligand)
+                seq_file = os.path.join(ligand_dir, f"{split}_set.fasta")
+                label_file = os.path.join(ligand_dir, f"{split}_labels.fasta")
 
-            sequences = read_fasta(seq_file)
-            labels = read_fasta(label_file)
+                sequences = read_fasta(seq_file)
+                labels = read_fasta(label_file)
 
-            for seq_id in sequences:
-                if seq_id in labels and len(sequences[seq_id]) == len(labels[seq_id]):
-                    self.data.append({
-                        "sequence": sequences[seq_id],
-                        "label": labels[seq_id],
-                        "ligand": ligand,
-                        "ligand_idx": ligand2idx[ligand]
-                    })
+                for seq_id in sequences:
+                    if seq_id in labels and len(sequences[seq_id]) == len(labels[seq_id]):
+                        self.data.append({
+                            "sequence": sequences[seq_id],
+                            "label": labels[seq_id],
+                            "ligand": ligand,
+                            "ligand_idx": ligand2idx[ligand]
+                        })
+
+        else:
+            csv_map = {
+                "train": "top_10_train.csv",
+                "eval": "top_10_val.csv",
+                "test": "top_10_test.csv"
+            }
+            csv_dir = os.path.join(data_root, "top_10")
+            csv_path = os.path.join(csv_dir, csv_map[split])
+            df = pd.read_csv(csv_path)
+
+            for _, row in df.iterrows():
+                ligand = row["ligand_unique_ccd_code"]
+                if ligand in ligand2idx:
+                    sequence = row["protein_sequence"]
+                    label_str = row["binding_sites_labels"]
+                    if isinstance(label_str, str):
+                        label_str = label_str.strip('"')
+                        if len(sequence) == len(label_str):
+                            self.data.append({
+                                "sequence": sequence,
+                                "label": label_str,
+                                "ligand": ligand,
+                                "ligand_idx": ligand2idx[ligand]
+                            })
 
         if subset_size is not None:
             import random
@@ -116,7 +144,7 @@ class LigandDataset(Dataset):
             print(f"{token_id:>4}: {token}")
 
 
-def prepare_dataloaders(configs, debug=False, debug_subset_size=None):
+def prepare_dataloaders(configs, debug=False, debug_subset_size=None, use_precompiled_data = False):
     """
     Prepares DataLoaders for training, validation, and testing based on configurations.
 
@@ -127,6 +155,11 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None):
         dict: A dictionary containing DataLoaders for "train", "valid", and "test".
     """
     from transformers import AutoTokenizer
+
+    if use_precompiled_data:
+        print("Using PLINDER dataset")
+    else:
+        print("Using BioLIP dataset")
 
     model_name = configs.model.model_name
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -149,7 +182,8 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None):
             ligand2idx,
             split="train",
             max_length=max_length,
-            subset_size=debug_subset_size if debug else None
+            subset_size=debug_subset_size if debug else None,
+            use_precompiled_data=use_precompiled_data
         )
         dataloaders["train"] = DataLoader(
             train_dataset,
@@ -171,7 +205,8 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None):
             ligand2idx,
             split="eval",
             max_length=max_length,
-            subset_size=debug_subset_size if debug else None
+            subset_size=debug_subset_size if debug else None,
+            use_precompiled_data=use_precompiled_data
         )
         dataloaders["valid"] = DataLoader(
             valid_dataset,
@@ -193,7 +228,8 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None):
             ligand2idx,
             split="test",
             max_length=max_length,
-            subset_size=debug_subset_size if debug else None
+            subset_size=debug_subset_size if debug else None,
+            use_precompiled_data=use_precompiled_data
         )
         dataloaders["test"] = DataLoader(
             test_dataset,
@@ -216,9 +252,9 @@ if __name__ == '__main__':
         config_data = yaml.safe_load(file)
 
     configs = Box(config_data)
-
+    use_precompiled_data = configs.use_plinder_dataset
     # Prepare DataLoaders
-    dataloaders = prepare_dataloaders(configs)
+    dataloaders = prepare_dataloaders(configs, use_precompiled_data=use_precompiled_data)
 
     # Access DataLoaders
     train_loader = dataloaders.get("train", None)
