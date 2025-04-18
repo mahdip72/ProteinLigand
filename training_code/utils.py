@@ -250,7 +250,7 @@ def visualize_predictions(model, dataloader, device, num_sequences=5, configs=No
     predictions = []
 
     ligand_names = configs.ligands
-    idx_to_ligand = {v: k for k, v in {ligand: i for i, ligand in enumerate(ptm_names)}.items()}
+    idx_to_ligand = {v: k for k, v in {ligand: i for i, ligand in enumerate(ligand_names)}.items()}
 
     print("'P' = positive, '.' = negative, '!' = mismatch between ground truth and prediction.")
 
