@@ -6,6 +6,7 @@ import shutil
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import torch.optim.lr_scheduler as lr_scheduler
+import torch
 
 def get_optimizer(model, configs):
     optimizer_config = configs.optimizer
@@ -231,15 +232,16 @@ def load_configs(config):
 
     return tree_config
 
-def visualize_predictions(model, dataloader, device, num_sequences=5):
+def visualize_predictions(model, dataloader, device, num_sequences=5, configs=None):
     """
-    Visualize model predictions on the validation dataset.
+    Visualize model predictions on the validation/test dataset.
 
     Args:
         model: The trained model.
         dataloader: DataLoader for the validation/test dataset.
         device: The device (CPU or GPU) where the model is loaded.
         num_sequences: Number of sequences to visualize.
+        configs: Configuration object containing model settings.
     """
     model.eval()
 
@@ -247,20 +249,30 @@ def visualize_predictions(model, dataloader, device, num_sequences=5):
     ground_truths = []
     predictions = []
 
-    print("'P' indicates a positive label/prediction, '.' indicates a negative label/prediction, and '!' indicates a difference between the ground truth and the prediction.")
+    ligand_names = configs.ligands
+    idx_to_ligand = {v: k for k, v in {ligand: i for i, ligand in enumerate(ptm_names)}.items()}
+
+    print("'P' = positive, '.' = negative, '!' = mismatch between ground truth and prediction.")
 
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
             if len(sequences) >= num_sequences:
                 break
+
             inputs = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
             labels = batch["labels"].to(device)
 
-            logits = model(input_ids=inputs, attention_mask=attention_mask)
+            condition_idx = batch["condition_idx"].to(device)
+            logits = model(input_ids=inputs, attention_mask=attention_mask, condition_idx=condition_idx)
+
+
             preds = torch.sigmoid(logits) > 0.5
 
-            for seq, label, pred, mask in zip(inputs, labels, preds, attention_mask):
+            for seq, label, pred, mask, *extras in zip(
+                inputs, labels, preds, attention_mask,
+                [condition_idx]
+            ):
                 if len(sequences) >= num_sequences:
                     break
 
@@ -274,8 +286,16 @@ def visualize_predictions(model, dataloader, device, num_sequences=5):
                 ground_truths.append(label[valid_idx])
                 predictions.append(pred[valid_idx])
 
+                cond_idx = extras[0][0].item()
+                ligand_type = idx_to_ligand[cond_idx]
+                sequences[-1] = (sequences[-1], ligand_type)
+
     for i in range(len(sequences)):
-        seq = sequences[i]
+        item = sequences[i]
+        print(f"\nSequence {i + 1}:")
+        seq, ligand_type = item
+        print(f"\n(Ligand Type: {ligand_type}):")
+
         truth = ground_truths[i]
         pred = predictions[i]
 
@@ -283,29 +303,19 @@ def visualize_predictions(model, dataloader, device, num_sequences=5):
 
         pred_str = ' '.join('P' if p else '.' for p in pred)
         truth_str = ' '.join('P' if t else '.' for t in truth)
-        true_positives = int(sum((t == 1 and p == 1) for t, p in zip(truth, pred)))
-        false_positives = int(sum((t == 0 and p == 1) for t, p in zip(truth, pred)))
-        false_negatives = int(sum((t == 1 and p == 0) for t, p in zip(truth, pred)))
+        differences = ' '.join('!' if t != p else ' ' for t, p in zip(truth, pred))
 
-        if true_positives > 0:
-            f1_score = 2 * true_positives / (2 * true_positives + false_positives + false_negatives)
-        else:
-            f1_score = 0.0
+        tp = int(sum((t == 1 and p == 1) for t, p in zip(truth, pred)))
+        fp = int(sum((t == 0 and p == 1) for t, p in zip(truth, pred)))
+        fn = int(sum((t == 1 and p == 0) for t, p in zip(truth, pred)))
 
-        print(f"\nSequence {i + 1}:")
+        f1 = 2 * tp / (2 * tp + fp + fn) if tp > 0 else 0.0
+
         print(f"  Sequence:      {decoded_seq}")
         print(f"  Ground Truth:  {truth_str}")
         print(f"  Predictions:   {pred_str}")
-        differences = ' '.join('!' if t != p else ' ' for t, p in zip(truth, pred))
         print(f"  Differences:   {differences}")
-        print(
-            f"  Length: {len(seq)}, F1 Score: {f1_score:.2f}, "
-            f"Correctly Predicted Positives: {true_positives}, "
-            f"False Positives: {false_positives}, "
-            f"False Negatives: {false_negatives}"
-        )
-        
-import torch
+        print(f"  Length: {len(seq)}, F1 Score: {f1:.2f}, TP: {tp}, FP: {fp}, FN: {fn}")
 
 def apply_random_masking(input_ids, mask_token_id, amino_acid_token_ids, mask_prob=0.05):
     """
