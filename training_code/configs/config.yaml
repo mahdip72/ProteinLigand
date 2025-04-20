@@ -1,8 +1,9 @@
 checkpoints_every: 24
-data_type: TOP-10
+data_type: TOP-10_CLM
 fix_seed: 0
-use_plinder_dataset: true
+use_plinder_dataset: false
 max_pos_weight: 1
+use_positive_weighting_for_binding_sites: true
 model:
   backbone_dropout_rate: 0.3
   classifier_dropout_rate: 0.5
@@ -15,7 +16,7 @@ model:
   structure_aware: true
   dtype: "bfloat16"
   # chemical encoder configs
-  use_chemical_encoder: false
+  use_chemical_encoder: true
   chemical_encoder_num_unfrozen_layers: 3
   clm_max_length: 128 # TODO - experiment
   clm_output_dim: 768
@@ -151,6 +152,63 @@ dataset_weight_plinder:
   NAD: 1.4876
   NAP: 1.6737
   ZN: 2.1242
+
+pos_dataset_weight:
+  # For BIOLIP, square rooted
+  ACO: 4.6176
+  ADP: 7.0186
+  AGS: 6.9843
+  AMP: 6.4685
+  ANP: 6.7729
+  ATP: 7.7615
+  BGC: 7.6696
+  BMA: 10.0504
+  CA: 7.2932
+  CLA: 2.1068
+  CLR: 9.325
+  CO: 8.3624
+  COA: 5.3376
+  CU: 8.4515
+  FAD: 4.6984
+  FE: 8.5749
+  FE2: 9.759
+  FES: 6.5512
+  FMN: 5.0443
+  GAL: 7.8087
+  GDP: 5.6888
+  GLC: 7.4536
+  GSH: 5.5132
+  GTP: 5.7166
+  HEC: 3.0387
+  HEM: 4.4065
+  MAN: 9.0167
+  MG: 11.547
+  MN: 9.4072
+  NAD: 4.6778
+  NAP: 4.4901
+  NDP: 4.4811
+  PLP: 6.5938
+  PO4: 8.2479
+  SAH: 5.3
+  SAM: 5.1367
+  SF4: 6.1314
+  SO4: 7.2357
+  UDP: 6.2994
+  Y01: 8.3045
+  ZN: 8.6387
+
+pos_dataset_weight_plinder:
+    # For PLINDER, square rooted
+    ADP: 11.47
+    ATP: 12.29
+    CA: 15.17
+    CLA: 13.71
+    FAD: 8.75
+    HEM: 5.9
+    MG: 19.69
+    NAD: 8.08
+    NAP: 6.86
+    ZN: 12.42
 
 ligand_to_smiles:
   ACO: "CC(=O)SCCNC(=O)CCNC(=O)[C@@H](C(C)(C)CO[P@](=O)(O)O[P@@](=O)(O)OC[C@@H]1[C@H]([C@H]([C@@H](O1)n2cnc3c2ncnc3N)O)OP(=O)(O)O"

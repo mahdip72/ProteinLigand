@@ -1,5 +1,6 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import argparse
 import yaml
 import torch
@@ -31,6 +32,7 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
         use_focal_loss (bool): If True, use focal loss instead of weighted BCE loss. Defaults to False.
         gamma (float): Focusing parameter for focal loss. Defaults to 2.0.
         label_smoothing (float): Amount of label smoothing to apply (0.0 = none).
+        kwargs: Additional parameters, including configs.
 
     Returns:
         Tensor: The calculated loss.
@@ -101,22 +103,35 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
     bce_loss = bce_loss.view_as(logits)
 
     # ========================
-    # 4. Dataset Weighting
+    # 4. Dataset Weighting and Binding-Ratio Weighting
     # ========================
+
+    use_pos_weighting = configs.use_positive_weighting_for_binding_sites
     if configs and hasattr(configs, 'ligands') and hasattr(configs, 'dataset_weight') and ligand_idx is not None:
         ligand_names = configs.ligands
-        if configs.use_plinder_dataset:
-            dataset_weight = configs.dataset_weight_plinder
+        dataset_weight = configs.dataset_weight_plinder if configs.use_plinder_dataset else configs.dataset_weight
+        pos_weight_dict = configs.pos_dataset_weight_plinder if configs.use_plinder_dataset else configs.pos_dataset_weight
+
+        batch_ligand_names = [ligand_names[idx.item()] for idx in ligand_idx]
+
+        batch_sample_weights = torch.tensor(
+            [dataset_weight.get(name, 1.0) for name in batch_ligand_names],
+            device=logits.device
+        )
+
+        if use_pos_weighting and pos_weight_dict:
+            batch_token_pos_weights = torch.tensor(
+                [pos_weight_dict.get(name, 1.0) for name in batch_ligand_names],
+                device=logits.device
+            )
+            token_mask = labels.float()  # shape: [B, L]
+            pos_token_weights = batch_token_pos_weights[:, None] * token_mask + (1.0 - token_mask)
+            pos_token_weights = pos_token_weights.unsqueeze(2)  # shape: [B, L, 1]
         else:
-            dataset_weight = configs.dataset_weight
+            pos_token_weights = torch.ones_like(logits, dtype=torch.float)
 
-        # Get weights for each sample in the batch
-        batch_ligand_weights = torch.tensor([
-            dataset_weight.get(ligand_names[idx.item()], 1.0)
-            for idx in ligand_idx
-        ], device=logits.device)
-
-        weight_matrix = batch_ligand_weights.unsqueeze(1).unsqueeze(2).expand_as(logits)
+        weight_matrix = batch_sample_weights.unsqueeze(1).unsqueeze(2).expand_as(logits)  # [B, 1, 1] → [B, L, 1]
+        weight_matrix = weight_matrix * pos_token_weights  # final shape: [B, L, 1]
     else:
         weight_matrix = torch.ones_like(logits)
 
@@ -161,16 +176,17 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
     running_loss = 0.0
     smoothed_pos_weight = None
 
+    configs = kwargs.get("configs", None)
+
     # for keeping track of individual ligand predictions
     if verbose:
         ligand_preds_labels = defaultdict(list)
-        configs = kwargs.get("configs", None)
         ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
         idx_to_ligand = idx2ligand(ligand_names)
 
     # For logging within each epoch instead of just once every epoch since each epoch takes a long time, logging 100 times per epoch
     log_interval = max(len(trainloader) // 100, 1)
-    mixed_precision = kwargs.get("configs", {}).get("train_settings", {}).get("mixed_precision", "no")
+    mixed_precision = configs.train_settings.mixed_precision if configs and hasattr(configs, "train_settings") else None
 
     # For random masking
     amino_acid_token_ids = trainloader.dataset.get_amino_acid_token_ids()
@@ -181,7 +197,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         labels = batch["labels"].to(device)
         ligand_idx = batch["ligand_idx"].to(device)
 
-        configs = kwargs.get("configs", None) 
+        configs = kwargs.get("configs", None)
         mask_prob = configs.mask_prob if configs and hasattr(configs, "mask_prob") else 0
 
         num_epochs = configs.train_settings.num_epochs if configs and hasattr(configs, "num_epochs") else 1
@@ -198,7 +214,6 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         )
         optimizer.zero_grad()
 
-        # Mixed precision training
         if mixed_precision == "fp16":
             autocast_dtype = torch.float16
         elif mixed_precision == "bf16":
@@ -316,11 +331,14 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     valid_loss = 0.0
     smoothed_pos_weight = None
 
+    configs = kwargs.get("configs", None)
+
     if verbose:
         ligand_preds_labels = defaultdict(list)
-        configs = kwargs.get("configs", None)
         ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
         idx_to_ligand = idx2ligand(ligand_names)
+
+    mixed_precision = configs.train_settings.mixed_precision if configs and hasattr(configs, "train_settings") else None
 
     for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc=f"Validation Epoch {epoch + 1}",
                               leave=False):
@@ -330,7 +348,13 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
         ligand_idx = batch["ligand_idx"].to(device)
 
         with torch.no_grad():
-            with autocast(device_type=device.type):
+            if mixed_precision == "fp16":
+                autocast_dtype = torch.float16
+            elif mixed_precision == "bf16":
+                autocast_dtype = torch.bfloat16
+            else:
+                autocast_dtype = None
+            with autocast(device_type=device.type, dtype=autocast_dtype):
                 outputs = model(input_ids=inputs, attention_mask=attention_mask, ligand_idx=ligand_idx)
                 logits = outputs
 
@@ -427,6 +451,8 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
     model.eval()
     test_loss = 0.0
 
+    configs = kwargs.get("configs", None)
+
     all_labels = []
     all_predictions = []
     incorrect_confidences = [] if log_confidences else None
@@ -434,8 +460,9 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
     false_negative_confidences = [] if log_confidences else None
     smoothed_pos_weight = None
 
+    mixed_precision = configs.train_settings.mixed_precision if configs and hasattr(configs, "train_settings") else None
+
     ligand_preds_labels = defaultdict(list)
-    configs = kwargs.get("configs", None)
     ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
     idx_to_ligand = idx2ligand(ligand_names)
 
@@ -446,7 +473,13 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
         ligand_idx = batch["ligand_idx"].to(device)
 
         with torch.no_grad():
-            with autocast(device_type=device.type):
+            if mixed_precision == "fp16":
+                autocast_dtype = torch.float16
+            elif mixed_precision == "bf16":
+                autocast_dtype = torch.bfloat16
+            else:
+                autocast_dtype = None
+            with autocast(device_type=device.type, dtype=autocast_dtype):
                 outputs = model(input_ids=inputs, attention_mask=attention_mask, ligand_idx=ligand_idx)
                 logits = outputs
 
@@ -465,9 +498,9 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
                 test_loss += loss.item()
 
             # Convert logits to probabilities
-            probabilities = torch.sigmoid(logits).cpu().numpy().flatten()
+            probabilities = torch.sigmoid(logits.float()).cpu().numpy().flatten()
             predictions = (probabilities > 0.5).astype(int)  # Convert to binary labels
-            labels_flat = labels.cpu().numpy().flatten()
+            labels_flat = labels.float().cpu().numpy().flatten()
 
             batch_size, seq_len = logits.shape[:2]
             for b in range(batch_size):
@@ -489,14 +522,14 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
                             false_negative_confidences.append(prob)
 
             # Update Metrics
-            accuracy.update(torch.tensor(predictions), torch.tensor(labels.cpu().numpy().flatten()))
-            f1_score.update(torch.tensor(predictions), torch.tensor(labels.cpu().numpy().flatten()))
-            precision.update(torch.tensor(predictions), torch.tensor(labels.cpu().numpy().flatten()))
-            recall.update(torch.tensor(predictions), torch.tensor(labels.cpu().numpy().flatten()))
+            accuracy.update(torch.tensor(predictions), torch.tensor(labels.float().cpu().numpy().flatten()))
+            f1_score.update(torch.tensor(predictions), torch.tensor(labels.float().cpu().numpy().flatten()))
+            precision.update(torch.tensor(predictions), torch.tensor(labels.float().cpu().numpy().flatten()))
+            recall.update(torch.tensor(predictions), torch.tensor(labels.float().cpu().numpy().flatten()))
 
             # Collect predictions and labels for further analysis
             all_predictions.extend(predictions)
-            all_labels.extend(labels.cpu().numpy().flatten())
+            all_labels.extend(labels.float().cpu().numpy().flatten())
 
     # Compute Metrics
     avg_test_loss = test_loss / len(testloader)
@@ -578,7 +611,7 @@ def main(dict_config, config_file_path):
     test = True
 
     if use_checkpoint:
-        load_checkpoint_path = "/home/dc57y/data/2025-04-06__23-37-46__TOP-10/checkpoints/checkpoint_epoch_6.pth"
+        load_checkpoint_path = "/home/dc57y/data/2025-04-18__13-54-23__TOP-10/checkpoints/checkpoint_epoch_1.pth"
     else:
         load_checkpoint_path = None
 
@@ -627,7 +660,7 @@ def main(dict_config, config_file_path):
 
         if visualize:
             print("Visualizing predictions on test dataset")
-            visualize_predictions(model, testloader, device, num_sequences=10)
+            visualize_predictions(model, testloader, device, num_sequences=10, configs=configs)
             return
 
     if save_best_checkpoint_only:
@@ -644,11 +677,11 @@ def main(dict_config, config_file_path):
                                                        train_writer=train_writer, grad_clip_norm=grad_clip_norm,
                                                        alpha=alpha,gamma=gamma,
                                                        label_smoothing=label_smoothing, verbose=False,
-                                                       configs=configs) # TODO: Change verbose back to False eventually
+                                                       configs=configs)
 
             valid_loss, _, macro_f1 = validation_loop(model, validloader, epoch, device, valid_writer=valid_writer,
-                                                   alpha=alpha, gamma=gamma, configs=configs,
-                                                   label_smoothing=label_smoothing,)
+                                                   alpha=alpha, gamma=gamma,
+                                                   label_smoothing=label_smoothing,configs=configs)
             scheduler.step()
             if save_best_checkpoint_only:
                 if macro_f1 > best_f1:

@@ -1,5 +1,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 import torch
 from torch import nn
@@ -189,6 +191,7 @@ class LigandPredictionModel(nn.Module):
                                             add_special_tokens=True).to(input_ids.device)
             ligand_hidden = self.smiles_model(**encoded).last_hidden_state
             ligand_repr = self.proj_layernorm(self.projector(ligand_hidden))
+
         else:
             ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1)
         # 3. Pass through transformer
