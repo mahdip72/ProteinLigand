@@ -41,7 +41,7 @@ def read_fasta(file_path):
 
 
 class LigandDataset(Dataset):
-    def __init__(self, ligand_list, data_root, tokenizer, ligand2idx, split="train", max_length=512, subset_size=None, use_precompiled_data = False):
+    def __init__(self, ligand_list, data_root, tokenizer, ligand2idx, split="train", max_length=512, subset_size=None, use_precompiled_data = False, use_dynamic_SMILES=False):
         """
         Args:
             ligand_list (list): List of ligand names like ["ADP", "ATP", ...]
@@ -51,7 +51,8 @@ class LigandDataset(Dataset):
             split (str): One of 'train', 'eval', or 'test'.
             max_length (int): Max sequence length.
             subset_size (int): If provided, randomly samples this many entries from the dataset.
-            use_precompiled_data (bool): If True, uses precompiled data CSV file instead of FASTA files.
+            use_precompiled_data (bool): If True, uses precompiled data CSV file instead of FASTA files. Used for PLINDER
+            use_dynamic_SMILES (bool): If True, uses dynamic SMILES representation based on the given dataset
         """
 
         self.data = []
@@ -79,11 +80,15 @@ class LigandDataset(Dataset):
 
         else:
             csv_map = {
-                "train": "top_10_train.csv",
-                "eval": "top_10_val.csv",
-                "test": "top_10_test.csv"
+                # "train": "top_10_train.csv",
+                # "eval": "top_10_val.csv",
+                # "test": "top_10_test.csv",
+                "train": "all_ligands_100_threshold_train.csv",
+                "eval": "all_ligands_100_threshold_val.csv",
+                "test": "all_ligands_100_threshold_test.csv"
             }
-            csv_dir = os.path.join(data_root, "top_10")
+            # csv_dir = os.path.join(data_root, "top_10")
+            csv_dir = os.path.join(data_root, "PLINDER_181")
             csv_path = os.path.join(csv_dir, csv_map[split])
             df = pd.read_csv(csv_path)
 
@@ -95,12 +100,15 @@ class LigandDataset(Dataset):
                     if isinstance(label_str, str):
                         label_str = label_str.strip('"')
                         if len(sequence) == len(label_str):
-                            self.data.append({
+                            sample = {
                                 "sequence": sequence,
                                 "label": label_str,
                                 "ligand": ligand,
                                 "ligand_idx": ligand2idx[ligand]
-                            })
+                            }
+                            if use_dynamic_SMILES:
+                                sample["smiles"] = row["ligand_rdkit_canonical_smiles"]
+                            self.data.append(sample)
 
         if subset_size is not None:
             import random
@@ -123,12 +131,18 @@ class LigandDataset(Dataset):
         else:
             labels = labels[:self.max_length]
 
-        return {
+        batch = {
             "input_ids": inputs["input_ids"].squeeze(0),
             "attention_mask": inputs["attention_mask"].squeeze(0),
             "labels": labels,
-            "ligand_idx": entry["ligand_idx"]
+            "ligand_idx": entry["ligand_idx"],
         }
+
+        # If SMILES representation is needed (For PLINDER dataset where some ligands have different SMILES)
+        if "smiles" in entry:
+            batch["smiles"] = entry["smiles"]
+
+        return batch
 
     def get_amino_acid_token_ids(self):
         vocab = self.tokenizer.get_vocab()
@@ -167,6 +181,7 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None, use_precom
     ligand_list = configs.ligands
     ligand2idx = build_ligand2idx(ligand_list)
     data_root = configs.data_root
+    use_dynamic_SMILES = configs.use_dynamic_SMILES
 
     # Prepare train, test, and valid DataLoaders
     if hasattr(configs, 'train_settings'):
@@ -183,7 +198,8 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None, use_precom
             split="train",
             max_length=max_length,
             subset_size=debug_subset_size if debug else None,
-            use_precompiled_data=use_precompiled_data
+            use_precompiled_data=use_precompiled_data,
+            use_dynamic_SMILES=use_dynamic_SMILES
         )
         dataloaders["train"] = DataLoader(
             train_dataset,
@@ -206,7 +222,8 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None, use_precom
             split="eval",
             max_length=max_length,
             subset_size=debug_subset_size if debug else None,
-            use_precompiled_data=use_precompiled_data
+            use_precompiled_data=use_precompiled_data,
+            use_dynamic_SMILES=use_dynamic_SMILES
         )
         dataloaders["valid"] = DataLoader(
             valid_dataset,
@@ -229,7 +246,8 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None, use_precom
             split="test",
             max_length=max_length,
             subset_size=debug_subset_size if debug else None,
-            use_precompiled_data=use_precompiled_data
+            use_precompiled_data=use_precompiled_data,
+            use_dynamic_SMILES=use_dynamic_SMILES
         )
         dataloaders["test"] = DataLoader(
             test_dataset,

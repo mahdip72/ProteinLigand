@@ -121,9 +121,19 @@ class LigandPredictionModel(nn.Module):
             for param in self.smiles_model.parameters():
                 param.requires_grad = False
 
+            # Unfreeze last n layers
             last_n = configs.model.chemical_encoder_num_unfrozen_layers if hasattr(configs.model, "chemical_encoder_num_unfrozen_layers") else 0
-            for param in self.smiles_model.encoder.layer[-last_n:].parameters():
-                param.requires_grad = True
+            if last_n > 0:
+                for param in self.smiles_model.encoder.layer[-last_n:].parameters():
+                    param.requires_grad = True
+
+            # Unfreeze embeddings if requested
+            unfreeze_clm_embeddings = configs.model.unfreeze_clm_embeddings if hasattr(configs.model, "unfreeze_clm_embeddings") else False
+            if unfreeze_clm_embeddings:
+                print("Unfreezing CLM embeddings")
+                for param in self.smiles_model.embeddings.parameters():
+                    param.requires_grad = True
+
             self.clm_max_length = configs.model.clm_max_length
             clm_output_dim = configs.model.clm_output_dim
             self.ligand_to_smiles = configs.ligand_to_smiles
@@ -157,7 +167,7 @@ class LigandPredictionModel(nn.Module):
         self.dropout = nn.Dropout(classifier_dropout_rate)
         self.classifier = nn.Linear(hidden_size, num_labels)
 
-    def forward(self, input_ids, attention_mask,ligand_idx):
+    def forward(self, input_ids, attention_mask,ligand_idx, ligand_smiles=None):
         """
         Forward pass for the Ligand prediction model.
 
@@ -165,6 +175,7 @@ class LigandPredictionModel(nn.Module):
             input_ids (Tensor): Input token IDs.
             attention_mask (Tensor): Attention mask for padding.
             ligand_idx (Tensor): Index of the ligand type.
+            ligand_smiles (Tensor, optional): SMILES representation of the ligand (if using PLINDER dataset)
 
         Returns:
             Tensor: Logits for each residue in the input sequence.
@@ -181,8 +192,14 @@ class LigandPredictionModel(nn.Module):
 
         # 2. Retrieve ligand representation
         if self.use_chemical_encoder:
-            ligand_names = [self.idx_to_ligand[i.item()] for i in ligand_idx]
-            smiles_batch = [self.ligand_to_smiles[name] for name in ligand_names]
+            if ligand_smiles is None:
+                # Use dictionary to map ligand_idx to SMILES
+                ligand_names = [self.idx_to_ligand[i.item()] for i in ligand_idx]
+                smiles_batch = [self.ligand_to_smiles[name] for name in ligand_names]
+            else:
+                # Use ligand_smiles directly
+                smiles_batch = ligand_smiles
+
             encoded = self.smiles_tokenizer(smiles_batch,
                                             max_length=self.clm_max_length,
                                             padding='max_length',
@@ -273,7 +290,7 @@ if __name__ == '__main__':
 
     # Forward pass through the model
     with torch.no_grad():  # Disable gradient computation for inference
-        ligand_idx = torch.tensor([0]).to(device)
+        ligand_idx = torch.tensor([6]).to(device)
 
         # Step 1: Input IDs and Tokens
         print("\n[1] Tokenized Input IDs:")
@@ -299,7 +316,9 @@ if __name__ == '__main__':
 
             # Tokenize SMILES
             encoded = model.smiles_tokenizer([smiles], max_length=model.clm_max_length, padding="max_length", truncation=True, return_tensors="pt").to(device)
+            print(f"[3.1.1] Tokenized SMILES Input IDs: {encoded['input_ids']}")
             ligand_hidden = model.smiles_model(**encoded).last_hidden_state
+            print(f"[3.1.2] Ligand Hidden States Tensor First 10 Tokens: {ligand_hidden.squeeze(0)[:10]}")
             ligand_repr = model.projector(ligand_hidden)
 
             print(f"[3.2] CLM Embedding Shape: {ligand_repr.shape}")
@@ -329,4 +348,22 @@ if __name__ == '__main__':
         print(f"\n[5] Final Logits Shape: {logits.shape}")
         print(f"[5.1] Final Logits (Sample):\n{logits.squeeze(0)[:10]}")  # Show first 10 tokens for readability
 
+        # Testing to see if ligand clm token max length is adequate
+        configs = test_configs
+        smiles_tokenizer = AutoTokenizer.from_pretrained("ibm-research/MoLFormer-XL-both-10pct", trust_remote_code=True)
+        smiles_tokenizer.pad_token = "<pad>"
+        smiles_tokenizer.bos_token = "<s>"
+        smiles_tokenizer.eos_token = "</s>"
+        smiles_tokenizer.mask_token = "<unk>"
+        max_length = configs.model.clm_max_length
+        ligand_to_smiles = configs.ligand_to_smiles
+        ligands = configs.ligands
+        results = []
+        for ligand in ligands:
+            smiles = ligand_to_smiles[ligand]
+            tokenized = smiles_tokenizer(smiles, return_tensors="pt")
+            length = tokenized["input_ids"].shape[1]
+            print(f"Ligand: {ligand}, SMILES: {smiles}, Token Length: {length}")
+            if length > max_length:
+                print(f"Warning: Token length {length} exceeds current max_length {max_length}")
     # print(model)

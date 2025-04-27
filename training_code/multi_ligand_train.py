@@ -75,20 +75,20 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
     # # 2. Apply Label Smoothing
     # # ========================
     # # label_smoothing in [0.0, 1.0], e.g. 0.1 => "0.9 for positives, 0.1 for negatives"
-    # if label_smoothing > 0.0:
-    #     eps = label_smoothing
-    #     # smoothed_labels = labels.float() * (1.0 - eps) + 0.5 * eps
-    #
-    #     # Experimental smooth less for negative class since the positive weight can be very large
-    #     smoothed_labels = labels.float() * (1.0 - eps) + 0.01 * eps
-    #
-    #     # Experimental: only smooth for the positive class to prevent overconfident false positives
-    #     # smoothed_labels = labels.float() * (1.0 - eps)
-    #
-    # else:
-    #     smoothed_labels = labels.float()
+    if label_smoothing > 0.0:
+        eps = label_smoothing
+        smoothed_labels = labels.float() * (1.0 - eps) + 0.5 * eps
 
-    smoothed_labels = labels.float()
+        # Experimental smooth less for negative class since the positive weight can be very large
+        # smoothed_labels = labels.float() * (1.0 - eps) + 0.01 * eps
+
+        # Experimental: only smooth for the positive class to prevent overconfident false positives
+        # smoothed_labels = labels.float() * (1.0 - eps)
+
+    else:
+        smoothed_labels = labels.float()
+
+    # smoothed_labels = labels.float()
     # commenting out dynamic positive weight for now. Reminder to uncomment line 98 and above code later
 
     # ========================
@@ -103,13 +103,17 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
     bce_loss = bce_loss.view_as(logits)
 
     # ========================
-    # 4. Dataset Weighting and Binding-Ratio Weighting
+    # 4. Optional Dataset Weighting and Binding-Ratio Weighting
     # ========================
 
     use_pos_weighting = configs.use_positive_weighting_for_binding_sites
+    use_dataset_weighting = configs.use_dataset_weighting
     if configs and hasattr(configs, 'ligands') and hasattr(configs, 'dataset_weight') and ligand_idx is not None:
         ligand_names = configs.ligands
-        dataset_weight = configs.dataset_weight_plinder if configs.use_plinder_dataset else configs.dataset_weight
+        if use_dataset_weighting and hasattr(configs, 'dataset_weight'):
+            dataset_weight = configs.dataset_weight_plinder if configs.use_plinder_dataset else configs.dataset_weight
+        else:
+            dataset_weight = {}
         pos_weight_dict = configs.pos_dataset_weight_plinder if configs.use_plinder_dataset else configs.pos_dataset_weight
 
         batch_ligand_names = [ligand_names[idx.item()] for idx in ligand_idx]
@@ -125,7 +129,7 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
                 device=logits.device
             )
             token_mask = labels.float()  # shape: [B, L]
-            pos_token_weights = batch_token_pos_weights[:, None] * token_mask + (1.0 - token_mask)
+            pos_token_weights = batch_token_pos_weights[:, None] * token_mask + (1.0 - token_mask) # TODO: Behaving weirdly - needs to be debugged
             pos_token_weights = pos_token_weights.unsqueeze(2)  # shape: [B, L, 1]
         else:
             pos_token_weights = torch.ones_like(logits, dtype=torch.float)
@@ -196,6 +200,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
         ligand_idx = batch["ligand_idx"].to(device)
+        # If using dynamic ligand SMILES, get the ligand SMILES from the batch
+        ligand_smiles = batch.get("smiles", None)
+
 
         configs = kwargs.get("configs", None)
         mask_prob = configs.mask_prob if configs and hasattr(configs, "mask_prob") else 0
@@ -221,9 +228,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         else:
             autocast_dtype = None
         with autocast(device_type=device.type, dtype=autocast_dtype):
-            outputs = model(input_ids=inputs, attention_mask=attention_mask, ligand_idx=ligand_idx)
+            outputs = model(input_ids=inputs, attention_mask=attention_mask, ligand_idx=ligand_idx,
+                            ligand_smiles=ligand_smiles)
             logits = outputs
-
             loss, smoothed_pos_weight = calculate_loss(
                 logits=logits,
                 labels=labels,
@@ -231,7 +238,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
                 smoothed_pos_weight=smoothed_pos_weight,
                 device=device,
                 alpha=alpha,
-                use_focal_loss=False,
+                use_focal_loss=True,
                 gamma=gamma,
                 label_smoothing=label_smoothing,
                 **kwargs
@@ -346,6 +353,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
         ligand_idx = batch["ligand_idx"].to(device)
+        ligand_smiles = batch.get("smiles", None)
 
         with torch.no_grad():
             if mixed_precision == "fp16":
@@ -355,7 +363,8 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
             else:
                 autocast_dtype = None
             with autocast(device_type=device.type, dtype=autocast_dtype):
-                outputs = model(input_ids=inputs, attention_mask=attention_mask, ligand_idx=ligand_idx)
+                outputs = model(input_ids=inputs, attention_mask=attention_mask, ligand_idx=ligand_idx,
+                                ligand_smiles=ligand_smiles)
                 logits = outputs
 
                 loss, smoothed_pos_weight = calculate_loss(
@@ -365,7 +374,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
                     alpha=alpha,
-                    use_focal_loss=False,
+                    use_focal_loss=True,
                     gamma=gamma,
                     label_smoothing=label_smoothing,
                     **kwargs
@@ -471,6 +480,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
         ligand_idx = batch["ligand_idx"].to(device)
+        ligand_smiles = batch.get("smiles", None)
 
         with torch.no_grad():
             if mixed_precision == "fp16":
@@ -480,7 +490,8 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
             else:
                 autocast_dtype = None
             with autocast(device_type=device.type, dtype=autocast_dtype):
-                outputs = model(input_ids=inputs, attention_mask=attention_mask, ligand_idx=ligand_idx)
+                outputs = model(input_ids=inputs, attention_mask=attention_mask, ligand_idx=ligand_idx,
+                                ligand_smiles=ligand_smiles)
                 logits = outputs
 
                 loss, smoothed_pos_weight = calculate_loss(
@@ -490,7 +501,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
                     alpha=alpha,
-                    use_focal_loss=False,
+                    use_focal_loss=True,
                     gamma=gamma,
                     label_smoothing=label_smoothing,
                     **kwargs

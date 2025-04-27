@@ -343,9 +343,11 @@ def apply_random_masking(input_ids, mask_token_id, amino_acid_token_ids, mask_pr
     mask_mask = (rand_for_strategy < 0.8) & mask_selector
     masked_input[mask_mask] = mask_token_id
 
-    rand_mask = ((rand_for_strategy >= 0.8) & (rand_for_strategy < 0.9)) & mask_selector
-    random_tokens = torch.randint(len(amino_acid_token_ids), rand_mask.shape, device=device)
-    masked_input[rand_mask] = torch.tensor(amino_acid_token_ids, device=device)[random_tokens[rand_mask]]
+    # # 10% of the tokens are replaced with a random amino acid token
+    # # removing for now
+    # rand_mask = ((rand_for_strategy >= 0.8) & (rand_for_strategy < 0.9)) & mask_selector
+    # random_tokens = torch.randint(len(amino_acid_token_ids), rand_mask.shape, device=device)
+    # masked_input[rand_mask] = torch.tensor(amino_acid_token_ids, device=device)[random_tokens[rand_mask]]
 
     # Leave 10% unchanged (no need to modify masked_input)
 
