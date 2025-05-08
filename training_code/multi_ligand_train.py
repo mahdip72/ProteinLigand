@@ -7,7 +7,7 @@ import torch
 import numpy as np
 from utils import load_configs, prepare_saving_dir, prepare_tensorboard, get_optimizer, get_scheduler, save_checkpoint, \
     load_checkpoint, visualize_predictions, apply_random_masking
-from multi_ligand_dataset import prepare_dataloaders, idx2ligand
+from multi_ligand_dataset import prepare_dataloaders, idx2ligand, build_ligand2idx
 from multi_ligand_model import prepare_model
 import tqdm
 import torchmetrics
@@ -111,10 +111,10 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
     if configs and hasattr(configs, 'ligands') and hasattr(configs, 'dataset_weight') and ligand_idx is not None:
         ligand_names = configs.ligands
         if use_dataset_weighting and hasattr(configs, 'dataset_weight'):
-            dataset_weight = configs.dataset_weight_plinder if configs.use_plinder_dataset else configs.dataset_weight
+            dataset_weight = configs.dataset_weight_plinder if configs.dataset_format == "PLINDER" else configs.dataset_weight
         else:
             dataset_weight = {}
-        pos_weight_dict = configs.pos_dataset_weight_plinder if configs.use_plinder_dataset else configs.pos_dataset_weight
+        pos_weight_dict = configs.pos_dataset_weight_plinder if configs.dataset_format == "PLINDER" else configs.pos_dataset_weight
 
         batch_ligand_names = [ligand_names[idx.item()] for idx in ligand_idx]
 
@@ -610,19 +610,83 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
         "incorrect_confidence_scores": incorrect_confidences if log_confidences else None
     }
 
+def make_inferences(model, tokenizer, data_path, device, ligand, ligand2idx, max_length, prediction_threshold=0.5, **kwargs):
+    """
+    Make inferences on the test dataset using a trained checkpoint.
+
+    Args:
+        model: The trained model to use for inference.
+        tokenizer: Tokenizer for the model.
+        data_path (str): Path to the input data file.
+        device: Device to run inference on (CPU/GPU).
+        ligand: The ligand type to consider when making inferences.
+        ligand2idx: Dictionary mapping ligands to indices.
+        max_length (int): Maximum sequence length to consider for labels.
+        prediction_threshold (float): Threshold for making binary predictions.
+        kwargs: Additional parameters, including configs
+    """
+
+    import pandas as pd
+    df = pd.read_csv(data_path)
+
+    print("Preview of the input data:")
+    print(df.head())
+    # print length of the dataframe
+    print("Length of the input data:", len(df))
+
+    sequences = df['Amino Acid Sequence'].tolist()
+    predictions = [""] * len(sequences)
+
+    valid_indices = [i for i, seq in enumerate(sequences) if len(seq) <= max_length]
+    valid_sequences = [sequences[i] for i in valid_indices]
+    model.eval()
+    batch_size = 512
+    ligand_idx = ligand2idx[ligand]
+
+    with torch.no_grad():
+        for i in tqdm.tqdm(range(0, len(valid_sequences), batch_size), desc="Running inference"):
+            batch_seqs = valid_sequences[i:i + batch_size]
+            encodings = tokenizer(batch_seqs, return_tensors="pt", padding="max_length",
+                                  truncation=True, max_length=max_length, add_special_tokens=False)
+            input_ids = encodings["input_ids"].to(device)
+            attention_mask = encodings["attention_mask"].to(device)
+
+            ligand_idx_batch = torch.full((len(batch_seqs),), ligand_idx, dtype=torch.long, device=device)
+
+            logits = model(input_ids=input_ids, attention_mask=attention_mask, ligand_idx=ligand_idx_batch)
+            probs = torch.sigmoid(logits).squeeze(-1)
+            preds = (probs > prediction_threshold).long().cpu().numpy()
+
+            for j, pred in enumerate(preds):
+                seq_len = len(batch_seqs[j])
+                pred_str = ''.join(str(x) for x in pred[:seq_len])
+                predictions[valid_indices[i + j]] = pred_str
+
+    # Append predictions
+    df[f"{ligand}_Predictions"] = predictions
+    # output_path = data_path.replace(".csv", f"_{ligand}_predictions.csv")
+    output_path = data_path
+    df.to_csv(output_path, index=False)
+    return output_path
+
 
 def main(dict_config, config_file_path):
 
     # Flags for convenience
     train = True
     on_hellbender = True
-    save_best_checkpoint_only = True
+    save_best_checkpoint = True
+    save_intermediate_checkpoints = True
     use_checkpoint = False
     visualize = False
     test = True
+    inference = False
 
     if use_checkpoint:
-        load_checkpoint_path = "/home/dc57y/data/2025-04-18__13-54-23__TOP-10/checkpoints/checkpoint_epoch_1.pth"
+        # load_checkpoint_path = "/home/dc57y/data/2025-04-28__16-04-06__PLINDER_60_CLM/checkpoints/checkpoint_epoch_12.pth"
+        # checkpoint for embedding table:
+        load_checkpoint_path = "/home/dc57y/data/2025-04-23__20-30-35__BIOLIP_41_ET/checkpoints/checkpoint_epoch_12.pth"
+
     else:
         load_checkpoint_path = None
 
@@ -632,8 +696,8 @@ def main(dict_config, config_file_path):
         torch.manual_seed(configs.fix_seed)
         np.random.seed(configs.fix_seed)
 
-    use_plinder = configs.use_plinder_dataset
-    dataloaders = prepare_dataloaders(configs, use_precompiled_data=use_plinder)
+    dataset_format = configs.dataset_format
+    dataloaders = prepare_dataloaders(configs, data_format=dataset_format)
     # dataloaders = prepare_dataloaders(configs, debug=True, debug_subset_size=50)
 
     trainloader = dataloaders["train"]
@@ -642,7 +706,7 @@ def main(dict_config, config_file_path):
 
     print("Finished preparing dataloaders")
 
-    _, model = prepare_model(configs)
+    tokenizer, model = prepare_model(configs)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
@@ -674,7 +738,7 @@ def main(dict_config, config_file_path):
             visualize_predictions(model, testloader, device, num_sequences=10, configs=configs)
             return
 
-    if save_best_checkpoint_only:
+    if save_best_checkpoint:
         best_f1 = -1.0
         best_model_state = None
         best_epoch = -1
@@ -694,7 +758,7 @@ def main(dict_config, config_file_path):
                                                    alpha=alpha, gamma=gamma,
                                                    label_smoothing=label_smoothing,configs=configs)
             scheduler.step()
-            if save_best_checkpoint_only:
+            if save_best_checkpoint:
                 if macro_f1 > best_f1:
                     best_f1 = macro_f1
                     best_model_state = {
@@ -704,10 +768,10 @@ def main(dict_config, config_file_path):
                         'scaler': copy.deepcopy(scaler.state_dict()),
                         'epoch': epoch
                     }
-            else:
+            if save_intermediate_checkpoints:
                 if (epoch + 1) % checkpoint_every == 0:
                     save_checkpoint(model, optimizer, scheduler, scaler, epoch, checkpoint_path)
-        if save_best_checkpoint_only and best_f1 > -1:
+        if save_best_checkpoint and best_f1 > -1:
             model.load_state_dict(best_model_state['model'])
             optimizer.load_state_dict(best_model_state['optimizer'])
             scheduler.load_state_dict(best_model_state['scheduler'])
@@ -717,7 +781,7 @@ def main(dict_config, config_file_path):
 
     if test:
         print("Testing model on test dataset")
-        if use_checkpoint:
+        if use_checkpoint and not train:
             load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler)
             results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha, gamma=gamma,
                                       label_smoothing=label_smoothing, configs=configs)
@@ -726,6 +790,14 @@ def main(dict_config, config_file_path):
             # model.load_state_dict(best_model_state['model'])
             results = evaluation_loop(model, testloader, device, log_confidences=True, alpha=alpha,
                                   gamma=gamma, label_smoothing=label_smoothing, configs=configs)
+    if inference:
+        print("Making inferences on given dataset")
+        inference_file_path = "/home/dc57y/ProteinLigand/training_code/data/uniref50_chunk_3.csv"
+        ligand = "ZN"
+        max_length = 768
+        ligand2idx = build_ligand2idx(configs.ligands)
+        prediction_threshold = 0.6
+        make_inferences(model, tokenizer, inference_file_path, device, ligand, ligand2idx, max_length, prediction_threshold=prediction_threshold, configs=configs)
 
 
 if __name__ == '__main__':
