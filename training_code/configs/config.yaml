@@ -1,19 +1,19 @@
-# Testing with standard SMILES dict
+# ZERO SHOT TRAINING
 
-checkpoints_every: 24
-data_type: PLINDER_60_CLM
+checkpoints_every: 12
+data_type: ZERO_SHOT_CLM
 fix_seed: 0
-use_plinder_dataset: true
+dataset_format: "zero_shot"
 max_pos_weight: 1
 use_positive_weighting_for_binding_sites: false
 use_dataset_weighting: false
-use_dynamic_SMILES: false # Using dynamic SMILES representation based on dataset instead of static dictionary
+use_dynamic_SMILES: true # Using dynamic SMILES representation based on dataset instead of static dictionary
 model:
   backbone_dropout_rate: 0.3
   classifier_dropout_rate: 0.5
   last_state_dropout_rate: 0.0
   freeze_backbone: true
-  num_unfrozen_layers: 3 #3
+  num_unfrozen_layers: 6 #3
   freeze_embeddings: true
   hidden_size: 1280
   model_name: facebook/esm2_t33_650M_UR50D
@@ -22,13 +22,13 @@ model:
   # chemical encoder configs
   use_chemical_encoder: true
   chemical_encoder_num_unfrozen_layers: 3
-  unfreeze_clm_embeddings: true
+  unfreeze_clm_embeddings: false
   clm_max_length: 128
   clm_output_dim: 768
   clm_hidden_dropout_rate: 0.3
   clm_embedding_dropout_rate: 0.0
 
-num_ligands: 60 #60
+num_ligands: 166 #60
 optimizer:
   beta_1: 0.9
   beta_2: 0.999
@@ -66,11 +66,11 @@ tqdm_progress_bar: true
 train_settings:
   alpha: 0.9
   batch_size: 16
-  gamma: 2
+  gamma: 1.5
   grad_accumulation: 4
   grad_clip_norm: 1
   label_smoothing: 0.00
-  max_sequence_length: 768 #768
+  max_sequence_length: 1024 #768
   mixed_precision: bf16
   num_epochs: 24
   num_workers: 4
@@ -146,77 +146,244 @@ ligands:
 #  - Y01
 #  - ZN
 # PLINDER TOP 10
-#  - ADP
-#  - ATP
-#  - CA
-#  - CLA
-#  - FAD
-#  - HEM
-#  - MG
-#  - NAD
-#  - NAP
-#  - ZN
+#- HSR
+#- HEM
+#- HSR-HSR
+#- MG
+#- ADP
+#- ATP
+#- NAD
+#- FAD
+#- NAP
+#- GDP
   # PLINDER TOP 60
+#- ACT
+#- ADP
+#- AGC
+#- AGS
+#- AKG
+#- AMP
+#- ANP
+#- APC
+#- AR6
+#- ATP
+#- BFP
+#- BGC-BGC
+#- BLA
+#- C2E
+#- CA
+#- CLR
+#- CO
+#- COA
+#- CPG
+#- CRY
+#- CTP
+#- EDO
+#- F6P
+#- FAD
+#- FE
+#- FE2
+#- FMN
+#- FUC
+#- GCP
+#- GDP
+#- GNP
+#- GTP
+#- HEC
+#- HEM
+#- HSR
+#- HSR-HSR
+#- LTR
+#- MAN-MAN
+#- MES
+#- MG
+#- MN
+#- NAD
+#- NAI
+#- NAP
+#- NDG
+#- NDP
+#- NI
+#- OXY
+#- PLP
+#- PO4
+#- POP
+#- SAH
+#- SAM
+#- SF4
+#- SO4
+#- TPP
+#- TTP
+#- U25
+#- UPG
+#- ZN2
+  # ZERO SHOT
+- 2BA
+- 5GP
+- 6OU
+- 8CT
+- A3P
+- A86
+- AC1
+- ACO
+- ACP
 - ACT
+- ADE
+- ADN
 - ADP
-- AGC
+- AF3
 - AGS
+- AJP
 - AKG
+- ALA
+- ALF
 - AMP
 - ANP
 - APC
+- APR
 - AR6
+- ARG
+- ASP
 - ATP
-- BFP
-- BGC-BGC
+- AYE
+- AZI
+- B12
+- BCL
+- BCT
+- BDP
+- BEF
+- BGC
 - BLA
+- BMA
+- BPH
+- BTI
+- BTN
+- BU3
 - C2E
+- C5P
+- C8E
 - CA
+- CDP
+- CHL
+- CL
+- CLA
 - CLR
+- CMP
 - CO
+- CO3
 - COA
-- CPG
-- CRY
+- COM
 - CTP
-- EDO
-- F6P
+- CU
+- CU1
+- CYC
+- CYS
+- DD6
+- DMU
+- DTP
+- F3S
 - FAD
+- FBP
+- FDA
 - FE
 - FE2
+- FES
+- FLC
 - FMN
+- FRU
 - FUC
-- GCP
+- G4P
+- G6P
+- GAL
 - GDP
+- GLA
+- GLC
+- GLN
+- GLU
+- GLY
 - GNP
+- GOL
+- GSH
+- GSP
 - GTP
+- HEB
 - HEC
 - HEM
-- HSR
-- HSR-HSR
-- LTR
-- MAN-MAN
-- MES
+- HIS
+- I3P
+- IHP
+- IHT
+- II0
+- IMP
+- K
+- KC1
+- KC2
+- LBN
+- LEU
+- LMN
+- LYS
+- MAN
+- MET
 - MG
+- MGD
 - MN
+- MTA
 - NAD
 - NAI
 - NAP
-- NDG
 - NDP
 - NI
+- O
+- OXL
 - OXY
+- P5S
+- PEB
+- PEP
+- PGW
+- PHE
+- PHO
+- PID
+- PIO
 - PLP
+- PLX
+- PMP
+- PNS
 - PO4
 - POP
+- PQN
+- PQQ
+- PRO
+- PYR
+- RBF
+- RET
 - SAH
 - SAM
+- SER
 - SF4
+- SFG
+- SIA
+- SO3
 - SO4
+- STU
 - TPP
+- TRP
 - TTP
-- U25
+- TYD
+- TYR
+- U10
+- U5P
+- UD1
+- UDP
+- UIX
+- UMP
 - UPG
-- ZN2
+- UQ8
+- UTP
+- WO4
+- XYP
+- XYS
+- Y01
+- ZN
 dataset_weight: # square rooted weights
   # For BIOLIP
   ACO: 6.572248051043451
@@ -318,17 +485,252 @@ pos_dataset_weight:
   ZN: 1.3685
 
 pos_dataset_weight_plinder:
-    # For PLINDER, square rooted
-    ADP: 11.47
-    ATP: 12.29
-    CA: 15.17
-    CLA: 13.71
-    FAD: 8.75
-    HEM: 5.9
-    MG: 19.69
-    NAD: 8.08
-    NAP: 6.86
-    ZN: 12.42
+    # For PLINDER, square root
+#  ACT: 11.1752
+#  ADP: 8.0179
+#  AGC: 9.5129
+#  AGS: 9.174
+#  AKG: 7.027
+#  AMP: 7.52
+#  ANP: 7.3564
+#  APC: 7.2869
+#  AR6: 6.9824
+#  ATP: 8.122
+#  BFP: 6.3111
+#  BGC-BGC: 7.8493
+#  BLA: 5.2989
+#  C2E: 6.8388
+#  CA: 11.8617
+#  CLR: 12.1829
+#  CO: 10.7624
+#  COA: 7.3778
+#  CPG: 6.6117
+#  CRY: 11.4191
+#  CTP: 7.6064
+#  EDO: 12.5127
+#  F6P: 7.1883
+#  FAD: 5.44
+#  FE: 10.6359
+#  FE2: 11.0251
+#  FMN: 5.4789
+#  FUC: 9.5341
+#  GCP: 5.4022
+#  GDP: 5.4515
+#  GNP: 4.1728
+#  GTP: 5.9701
+#  HEC: 4.8758
+#  HEM: 4.8489
+#  HSR: 17.7061
+#  HSR-HSR: 17.0534
+#  LTR: 7.1456
+#  MAN-MAN: 6.6835
+#  MES: 11.1286
+#  MG: 16.3986
+#  MN: 12.3362
+#  NAD: 5.3841
+#  NAI: 5.6232
+#  NAP: 4.7766
+#  NDG: 10.221
+#  NDP: 4.8506
+#  NI: 11.4093
+#  OXY: 12.9481
+#  PLP: 7.4518
+#  PO4: 9.5298
+#  POP: 7.3909
+#  SAH: 6.0196
+#  SAM: 6.357
+#  SF4: 10.8007
+#  SO4: 9.95
+#  TPP: 8.37
+#  TTP: 8.0519
+#  U25: 7.4204
+#  UPG: 6.0876
+#  ZN2: 11.2314
+  # natural log
+#  ACT: 4.8274
+#  ADP: 4.1634
+#  AGC: 4.5053
+#  AGS: 4.4328
+#  AKG: 3.8995
+#  AMP: 4.0351
+#  ANP: 3.9911
+#  APC: 3.9722
+#  AR6: 3.8868
+#  ATP: 4.1892
+#  BFP: 3.6846
+#  BGC-BGC: 4.1209
+#  BLA: 3.335
+#  C2E: 3.8452
+#  CA: 4.9466
+#  CLR: 5.0001
+#  CO: 4.7521
+#  COA: 3.997
+#  CPG: 3.7777
+#  CRY: 4.8706
+#  CTP: 4.058
+#  EDO: 5.0535
+#  F6P: 3.9449
+#  FAD: 3.3876
+#  FE: 4.7285
+#  FE2: 4.8004
+#  FMN: 3.4018
+#  FUC: 4.5097
+#  GCP: 3.3736
+#  GDP: 3.3918
+#  GNP: 2.8572
+#  GTP: 3.5735
+#  HEC: 3.1686
+#  HEM: 3.1575
+#  HSR: 5.7478
+#  HSR-HSR: 5.6727
+#  LTR: 3.933
+#  MAN-MAN: 3.7993
+#  MES: 4.819
+#  MG: 5.5944
+#  MN: 5.0251
+#  NAD: 3.3669
+#  NAI: 3.4538
+#  NAP: 3.1275
+#  NDG: 4.6489
+#  NDP: 3.1582
+#  NI: 4.8689
+#  OXY: 5.1219
+#  PLP: 4.0169
+#  PO4: 4.5089
+#  POP: 4.0005
+#  SAH: 3.59
+#  SAM: 3.6991
+#  SF4: 4.7592
+#  SO4: 4.5952
+#  TPP: 4.2493
+#  TTP: 4.1718
+#  U25: 4.0085
+#  UPG: 3.6125
+#  ZN2: 4.8374
+  # log base 10 weights
+#  ACT: 1.4479
+#  ADP: 1.3447
+#  AGC: 1.3988
+#  AGS: 1.3875
+#  AKG: 1.3014
+#  AMP: 1.3238
+#  ANP: 1.3166
+#  APC: 1.3134
+#  AR6: 1.2992
+#  ATP: 1.3488
+#  BFP: 1.265
+#  BGC-BGC: 1.3378
+#  BLA: 1.2035
+#  C2E: 1.2923
+#  CA: 1.4657
+#  CLR: 1.4736
+#  CO: 1.4366
+#  COA: 1.3175
+#  CPG: 1.2809
+#  CRY: 1.4544
+#  CTP: 1.3275
+#  EDO: 1.4815
+#  F6P: 1.3089
+#  FAD: 1.2129
+#  FE: 1.433
+#  FE2: 1.4439
+#  FMN: 1.2155
+#  FUC: 1.3995
+#  GCP: 1.2104
+#  GDP: 1.2137
+#  GNP: 1.1139
+#  GTP: 1.2458
+#  HEC: 1.1731
+#  HEM: 1.171
+#  HSR: 1.58
+#  HSR-HSR: 1.5696
+#  LTR: 1.3069
+#  MAN-MAN: 1.2845
+#  MES: 1.4467
+#  MG: 1.5587
+#  MN: 1.4773
+#  NAD: 1.2092
+#  NAI: 1.2247
+#  NAP: 1.1654
+#  NDG: 1.4209
+#  NDP: 1.1711
+#  NI: 1.4541
+#  OXY: 1.4914
+#  PLP: 1.3208
+#  PO4: 1.3993
+#  POP: 1.3181
+#  SAH: 1.2487
+#  SAM: 1.2675
+#  SF4: 1.4377
+#  SO4: 1.4127
+#  TPP: 1.3585
+#  TTP: 1.346
+#  U25: 1.3194
+#  UPG: 1.2526
+#  ZN2: 1.4494
+#  # original weights
+  ACT: 124.884
+  ADP: 64.287
+  AGC: 90.496
+  AGS: 84.163
+  AKG: 49.379
+  AMP: 56.55
+  ANP: 54.117
+  APC: 53.099
+  AR6: 48.754
+  ATP: 65.967
+  BFP: 39.83
+  BGC-BGC: 61.612
+  BLA: 28.078
+  C2E: 46.769
+  CA: 140.7
+  CLR: 148.424
+  CO: 115.83
+  COA: 54.432
+  CPG: 43.715
+  CRY: 130.395
+  CTP: 57.858
+  EDO: 156.568
+  F6P: 51.672
+  FAD: 29.594
+  FE: 113.123
+  FE2: 121.553
+  FMN: 30.018
+  FUC: 90.899
+  GCP: 29.184
+  GDP: 29.719
+  GNP: 17.412
+  GTP: 35.642
+  HEC: 23.773
+  HEM: 23.512
+  HSR: 313.507
+  HSR-HSR: 290.819
+  LTR: 51.06
+  MAN-MAN: 44.669
+  MES: 123.846
+  MG: 268.913
+  MN: 152.183
+  NAD: 28.989
+  NAI: 31.62
+  NAP: 22.816
+  NDG: 104.469
+  NDP: 23.528
+  NI: 130.172
+  OXY: 167.652
+  PLP: 55.53
+  PO4: 90.818
+  POP: 54.626
+  SAH: 36.235
+  SAM: 40.411
+  SF4: 116.655
+  SO4: 99.003
+  TPP: 70.057
+  TTP: 64.833
+  U25: 55.063
+  UPG: 37.059
+  ZN2: 126.144
+
+
 
 ligand_to_smiles:
   # For Biolip

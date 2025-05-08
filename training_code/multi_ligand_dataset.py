@@ -15,7 +15,9 @@ def idx2ligand(ligand_names):
     """
     Takes a list of ligand names and returns {index: ligand_name} dictionary.
     """
-    return {idx: ligand for idx, ligand in enumerate(sorted(set(ligand_names)))}
+    mapping = {idx: ligand for idx, ligand in enumerate(sorted(set(ligand_names)))}
+    mapping[-1] = "UNKNOWN"
+    return mapping
 
 
 def read_fasta(file_path):
@@ -28,20 +30,21 @@ def read_fasta(file_path):
         current_seq = []
         for line in file:
             line = line.strip()
-            if line.startswith(">"):  # Header line
+            if line.startswith(">"):
                 if current_id:
                     sequences[current_id] = "".join(current_seq)
-                current_id = line[1:]  # Remove '>'
+                current_id = line[1:]
                 current_seq = []
             else:
                 current_seq.append(line)
         if current_id:
-            sequences[current_id] = "".join(current_seq)  # Save last sequence
+            sequences[current_id] = "".join(current_seq)
     return sequences
 
 
 class LigandDataset(Dataset):
-    def __init__(self, ligand_list, data_root, tokenizer, ligand2idx, split="train", max_length=512, subset_size=None, use_precompiled_data = False, use_dynamic_SMILES=False):
+    def __init__(self, ligand_list, data_root, tokenizer, ligand2idx, split="train", max_length=512,
+                 subset_size=None, data_format="biolip", use_dynamic_SMILES=False):
         """
         Args:
             ligand_list (list): List of ligand names like ["ADP", "ATP", ...]
@@ -51,7 +54,7 @@ class LigandDataset(Dataset):
             split (str): One of 'train', 'eval', or 'test'.
             max_length (int): Max sequence length.
             subset_size (int): If provided, randomly samples this many entries from the dataset.
-            use_precompiled_data (bool): If True, uses precompiled data CSV file instead of FASTA files. Used for PLINDER
+            data_format (string): Name of dataset format.
             use_dynamic_SMILES (bool): If True, uses dynamic SMILES representation based on the given dataset
         """
 
@@ -59,60 +62,101 @@ class LigandDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.ligand2idx = ligand2idx
+        self.use_dynamic_SMILES = use_dynamic_SMILES
+        self.data_format = data_format.lower()
 
-        if not use_precompiled_data:
-            for ligand in ligand_list:
-                ligand_dir = os.path.join(data_root, ligand)
-                seq_file = os.path.join(ligand_dir, f"{split}_set.fasta")
-                label_file = os.path.join(ligand_dir, f"{split}_labels.fasta")
+        loader_map = {
+            "biolip": self._load_biolip_format,
+            "plinder": self._load_plinder_format,
+            "biolip_zero_shot": self._load_zero_shot_format,
+            "zero_shot": self._load_zero_shot_format,
+        }
 
-                sequences = read_fasta(seq_file)
-                labels = read_fasta(label_file)
+        if self.data_format not in loader_map:
+            raise ValueError(f"Unsupported data format: {self.data_format}")
 
-                for seq_id in sequences:
-                    if seq_id in labels and len(sequences[seq_id]) == len(labels[seq_id]):
-                        self.data.append({
-                            "sequence": sequences[seq_id],
-                            "label": labels[seq_id],
-                            "ligand": ligand,
-                            "ligand_idx": ligand2idx[ligand]
-                        })
-
-        else:
-            csv_map = {
-                # "train": "top_10_train.csv",
-                # "eval": "top_10_val.csv",
-                # "test": "top_10_test.csv",
-                "train": "all_ligands_100_threshold_train.csv",
-                "eval": "all_ligands_100_threshold_val.csv",
-                "test": "all_ligands_100_threshold_test.csv"
-            }
-            # csv_dir = os.path.join(data_root, "top_10")
-            csv_dir = os.path.join(data_root, "PLINDER_181")
-            csv_path = os.path.join(csv_dir, csv_map[split])
-            df = pd.read_csv(csv_path)
-
-            for _, row in df.iterrows():
-                ligand = row["ligand_unique_ccd_code"]
-                if ligand in ligand2idx:
-                    sequence = row["protein_sequence"]
-                    label_str = row["binding_sites_labels"]
-                    if isinstance(label_str, str):
-                        label_str = label_str.strip('"')
-                        if len(sequence) == len(label_str):
-                            sample = {
-                                "sequence": sequence,
-                                "label": label_str,
-                                "ligand": ligand,
-                                "ligand_idx": ligand2idx[ligand]
-                            }
-                            if use_dynamic_SMILES:
-                                sample["smiles"] = row["ligand_rdkit_canonical_smiles"]
-                            self.data.append(sample)
+        loader_map[self.data_format](ligand_list, data_root, split)
 
         if subset_size is not None:
             import random
             self.data = random.sample(self.data, subset_size)
+
+    def _load_biolip_format(self, ligand_list, data_root, split):
+        for ligand in ligand_list:
+            ligand_dir = os.path.join(data_root, ligand)
+            seq_file = os.path.join(ligand_dir, f"{split}_set.fasta")
+            label_file = os.path.join(ligand_dir, f"{split}_labels.fasta")
+
+            sequences = read_fasta(seq_file)
+            labels = read_fasta(label_file)
+
+            for seq_id in sequences:
+                if seq_id in labels and len(sequences[seq_id]) == len(labels[seq_id]):
+                    self.data.append({
+                        "sequence": sequences[seq_id],
+                        "label": labels[seq_id],
+                        "ligand": ligand,
+                        "ligand_idx": self.ligand2idx[ligand]
+                    })
+
+    def _load_plinder_format(self, ligand_list, data_root, split):
+        csv_map = {
+            "train": "all_ligands_100_threshold_train.csv",
+            "eval": "all_ligands_100_threshold_val.csv",
+            "test": "all_ligands_100_threshold_test.csv"
+        }
+        csv_dir = os.path.join(data_root, "PLINDER_181")
+        csv_path = os.path.join(csv_dir, csv_map[split])
+        df = pd.read_csv(csv_path)
+
+        for _, row in df.iterrows():
+            ligand = row["ligand_unique_ccd_code"]
+            if ligand in self.ligand2idx:
+                sequence = row["protein_sequence"]
+                label_str = row["binding_sites_labels"]
+                if isinstance(label_str, str):
+                    label_str = label_str.strip('"')
+                    if len(sequence) == len(label_str):
+                        sample = {
+                            "sequence": sequence,
+                            "label": label_str,
+                            "ligand": ligand,
+                            "ligand_idx": self.ligand2idx[ligand]
+                        }
+                        if self.use_dynamic_SMILES:
+                            sample["smiles"] = row.get("ligand_rdkit_canonical_smiles", "")
+                        self.data.append(sample)
+
+    def _load_zero_shot_format(self, ligand_list, data_root, split):
+        csv_map = {
+            "train": "all_train.csv",
+            "eval": "all_val.csv",
+            # "test": "zero_shot_test.csv"
+            # "test": "underrepresented_test.csv"
+            "test": "overrepresented_test.csv"
+
+        }
+        csv_dir = os.path.join(data_root, "BIOLIP_ZERO_SHOT")
+        csv_path = os.path.join(csv_dir, csv_map[split])
+        df = pd.read_csv(csv_path)
+
+        for _, row in df.iterrows():
+            ligand = row["ligand_id"]
+            sequence = row["receptor_sequence"]
+            label_str = row["seq_labels"]
+
+            if isinstance(label_str, str):
+                label_str = label_str.strip('"')
+                if len(sequence) == len(label_str):
+                    sample = {
+                        "sequence": sequence,
+                        "label": label_str,
+                        "ligand": ligand,
+                        "ligand_idx": self.ligand2idx.get(ligand, -1)  # -1 means unseen, zero-shot
+                    }
+                    if self.use_dynamic_SMILES:
+                        sample["smiles"] = row.get("SMILES_cleaned", "")
+                    self.data.append(sample)
 
     def __len__(self):
         return len(self.data)
@@ -158,22 +202,23 @@ class LigandDataset(Dataset):
             print(f"{token_id:>4}: {token}")
 
 
-def prepare_dataloaders(configs, debug=False, debug_subset_size=None, use_precompiled_data = False):
+def prepare_dataloaders(configs, debug=False, debug_subset_size=None, data_format = "biolip"):
     """
     Prepares DataLoaders for training, validation, and testing based on configurations.
 
     Args:
         configs: Configuration object containing file paths and DataLoader settings.
+        debug (bool): If True, uses a smaller subset of the dataset for debugging.
+        debug_subset_size (int): Number of samples to use for debugging.
+        data_format (str): Name of dataset format: valid arguments - "plinder", "biolip", "biolip_zero_shot"
 
     Returns:
         dict: A dictionary containing DataLoaders for "train", "valid", and "test".
     """
     from transformers import AutoTokenizer
 
-    if use_precompiled_data:
-        print("Using PLINDER dataset")
-    else:
-        print("Using BioLIP dataset")
+    data_format = data_format.lower()
+    print(f"Using dataset format: {data_format}")
 
     model_name = configs.model.model_name
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -198,7 +243,7 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None, use_precom
             split="train",
             max_length=max_length,
             subset_size=debug_subset_size if debug else None,
-            use_precompiled_data=use_precompiled_data,
+            data_format=data_format,
             use_dynamic_SMILES=use_dynamic_SMILES
         )
         dataloaders["train"] = DataLoader(
@@ -222,7 +267,7 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None, use_precom
             split="eval",
             max_length=max_length,
             subset_size=debug_subset_size if debug else None,
-            use_precompiled_data=use_precompiled_data,
+            data_format=data_format,
             use_dynamic_SMILES=use_dynamic_SMILES
         )
         dataloaders["valid"] = DataLoader(
@@ -246,7 +291,7 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None, use_precom
             split="test",
             max_length=max_length,
             subset_size=debug_subset_size if debug else None,
-            use_precompiled_data=use_precompiled_data,
+            data_format=data_format,
             use_dynamic_SMILES=use_dynamic_SMILES
         )
         dataloaders["test"] = DataLoader(
@@ -270,9 +315,9 @@ if __name__ == '__main__':
         config_data = yaml.safe_load(file)
 
     configs = Box(config_data)
-    use_precompiled_data = configs.use_plinder_dataset
+    data_format = configs.dataset_format
     # Prepare DataLoaders
-    dataloaders = prepare_dataloaders(configs, use_precompiled_data=use_precompiled_data)
+    dataloaders = prepare_dataloaders(configs, data_format=data_format)
 
     # Access DataLoaders
     train_loader = dataloaders.get("train", None)
@@ -329,4 +374,47 @@ if __name__ == '__main__':
             print(f"{ligand_name} (index {ligand}): {count} samples")
         print("==========================================\n")
 
-        train_loader.dataset.print_tokenizer_vocab()
+        # ==============================
+        # Calculate Binding Ratios
+        # ==============================
+        print("=== Binding Ratios in train_loader ===")
+        from collections import defaultdict
+
+        total_tokens = defaultdict(int)
+        positive_tokens = defaultdict(int)
+
+        for batch in train_loader:
+            labels = batch["labels"]
+            ligand_idx = batch["ligand_idx"]
+
+            batch_size, seq_len = labels.shape
+            attention_mask = batch["attention_mask"]
+
+            for i in range(batch_size):
+                ligand = int(ligand_idx[i])
+                label_row = labels[i]
+                mask_row = attention_mask[i]
+
+                total_tokens[ligand] += mask_row.sum().item()
+                positive_tokens[ligand] += (label_row * mask_row).sum().item()
+
+        binding_ratios = {}
+        for ligand_idx_val in total_tokens:
+            ligand_name = idx2ligand[ligand_idx_val]
+            total = total_tokens[ligand_idx_val]
+            positive = positive_tokens[ligand_idx_val]
+
+            if positive > 0:
+                ratio = total / positive
+            else:
+                ratio = float('inf')
+            binding_ratios[ligand_name] = round(ratio, 3)
+
+        # Sort and print
+        binding_ratios = dict(sorted(binding_ratios.items(), key=lambda item: item[1]))
+        for ligand_name, ratio in binding_ratios.items():
+            print(f"{ligand_name}: Binding Ratio = {ratio}")
+
+        print("=======================================\n")
+
+        # train_loader.dataset.print_tokenizer_vocab()
