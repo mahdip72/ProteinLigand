@@ -1,4 +1,5 @@
 # ZERO SHOT TRAINING
+# 5/9 changed eps to 1e-7 and 0.98 beta_2
 
 checkpoints_every: 12
 data_type: ZERO_SHOT_CLM
@@ -31,13 +32,13 @@ model:
 num_ligands: 166 #60
 optimizer:
   beta_1: 0.9
-  beta_2: 0.999
+  beta_2: 0.98
   decay:
     gamma: 0.2
     min_lr: 0
     num_restarts: 1
     warmup: 512
-  eps: 1e-16
+  eps: 1e-7
   grad_clip_norm: 1
   lr: 5e-5
   momentum: 0.9
@@ -60,8 +61,7 @@ tensorboard_log: true
 test_settings:
   batch_size: 16
   num_workers: 4
-  test_label_path: ./data/Y01/test_labels.fasta
-  test_seq_path: ./data/Y01/test_set.fasta
+  test_splits: [ "underrepresented_test", "overrepresented_test", "zero_shot_test" ] # comment out if not using zero shot dataset
 tqdm_progress_bar: true
 train_settings:
   alpha: 0.9
@@ -75,8 +75,6 @@ train_settings:
   num_epochs: 24
   num_workers: 4
   shuffle: true
-  train_label_path: ./data/Y01/train_labels.fasta
-  train_seq_path: ./data/Y01/train_set.fasta
 transformer_head:
   num_heads: 8
   num_layers: 4
@@ -85,8 +83,6 @@ transformer_head:
 valid_settings:
   batch_size: 64
   num_workers: 4
-  valid_label_path: ./data/Y01/eval_labels.fasta
-  valid_seq_path: ./data/Y01/eval_set.fasta
 data_root: "./data"
 noise_std: 0.05 # experimental results show 0.05 works best
 mask_prob: 0.00 # 0.15

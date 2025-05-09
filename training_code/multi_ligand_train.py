@@ -673,11 +673,11 @@ def make_inferences(model, tokenizer, data_path, device, ligand, ligand2idx, max
 def main(dict_config, config_file_path):
 
     # Flags for convenience
-    train = True
+    train = False
     on_hellbender = True
     save_best_checkpoint = True
     save_intermediate_checkpoints = True
-    use_checkpoint = False
+    use_checkpoint = True
     visualize = False
     test = True
     inference = False
@@ -685,7 +685,9 @@ def main(dict_config, config_file_path):
     if use_checkpoint:
         # load_checkpoint_path = "/home/dc57y/data/2025-04-28__16-04-06__PLINDER_60_CLM/checkpoints/checkpoint_epoch_12.pth"
         # checkpoint for embedding table:
-        load_checkpoint_path = "/home/dc57y/data/2025-04-23__20-30-35__BIOLIP_41_ET/checkpoints/checkpoint_epoch_12.pth"
+        # load_checkpoint_path = "/home/dc57y/data/2025-04-23__20-30-35__BIOLIP_41_ET/checkpoints/checkpoint_epoch_12.pth"
+        load_checkpoint_path = "/home/dc57y/data/2025-05-08__19-29-02__ZERO_SHOT_CLM/checkpoints/checkpoint_epoch_18.pth"
+
 
     else:
         load_checkpoint_path = None
@@ -702,7 +704,15 @@ def main(dict_config, config_file_path):
 
     trainloader = dataloaders["train"]
     validloader = dataloaders["valid"]
-    testloader = dataloaders["test"]
+    # Handling multiple test loaders for case of zero-shot dataset
+    test_split_names = getattr(configs.test_settings, "test_splits", [])
+    testloaders = []
+    if test_split_names:
+        testloaders = {name: dataloaders[name] for name in test_split_names if name in dataloaders}
+        if len(testloaders) > 0:
+            testloader = testloaders[list(testloaders.keys())[0]] # default
+    else:
+        testloader = dataloaders["test"]
 
     print("Finished preparing dataloaders")
 
@@ -783,13 +793,15 @@ def main(dict_config, config_file_path):
         print("Testing model on test dataset")
         if use_checkpoint and not train:
             load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler)
+        if len(testloaders) > 0:
+            for name, testloader in testloaders.items():
+                print(f"Evaluating {name} dataset")
+                results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha,
+                                          gamma=gamma, label_smoothing=label_smoothing, configs=configs)
+        else:
             results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha, gamma=gamma,
                                       label_smoothing=label_smoothing, configs=configs)
-        else:
-            print("Evaluating test dataset with the model at epoch ", best_model_state['epoch'])
-            # model.load_state_dict(best_model_state['model'])
-            results = evaluation_loop(model, testloader, device, log_confidences=True, alpha=alpha,
-                                  gamma=gamma, label_smoothing=label_smoothing, configs=configs)
+
     if inference:
         print("Making inferences on given dataset")
         inference_file_path = "/home/dc57y/ProteinLigand/training_code/data/uniref50_chunk_3.csv"

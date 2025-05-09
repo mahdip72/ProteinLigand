@@ -131,11 +131,13 @@ class LigandDataset(Dataset):
         csv_map = {
             "train": "all_train.csv",
             "eval": "all_val.csv",
-            # "test": "zero_shot_test.csv"
-            # "test": "underrepresented_test.csv"
-            "test": "overrepresented_test.csv"
-
+            "test": "underrepresented_test.csv", # default
+            "underrepresented_test": "underrepresented_test.csv",
+            "overrepresented_test": "overrepresented_test.csv",
+            "zero_shot_test": "zero_shot_test.csv"
         }
+        if split not in csv_map:
+            raise ValueError(f"Unrecognized split name: {split}")
         csv_dir = os.path.join(data_root, "BIOLIP_ZERO_SHOT")
         csv_path = os.path.join(csv_dir, csv_map[split])
         df = pd.read_csv(csv_path)
@@ -179,7 +181,8 @@ class LigandDataset(Dataset):
             "input_ids": inputs["input_ids"].squeeze(0),
             "attention_mask": inputs["attention_mask"].squeeze(0),
             "labels": labels,
-            "ligand_idx": entry["ligand_idx"],
+            "ligand_idx": entry["ligand_idx"], # -1 indicates unseen/zero-shot ligand
+            "ligand": entry["ligand"]
         }
 
         # If SMILES representation is needed (For PLINDER dataset where some ligands have different SMILES)
@@ -283,24 +286,27 @@ def prepare_dataloaders(configs, debug=False, debug_subset_size=None, data_forma
         max_length = configs.train_settings.max_sequence_length
         num_workers = configs.test_settings.num_workers
 
-        test_dataset = LigandDataset(
-            ligand_list,
-            data_root,
-            tokenizer,
-            ligand2idx,
-            split="test",
-            max_length=max_length,
-            subset_size=debug_subset_size if debug else None,
-            data_format=data_format,
-            use_dynamic_SMILES=use_dynamic_SMILES
-        )
-        dataloaders["test"] = DataLoader(
-            test_dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-            pin_memory=True
-        )
+        test_splits = getattr(configs.test_settings, "test_splits", ["test"])
+        for test_split_name in test_splits:
+            test_dataset = LigandDataset(
+                ligand_list,
+                data_root,
+                tokenizer,
+                ligand2idx,
+                split=test_split_name,
+                max_length=max_length,
+                subset_size=debug_subset_size if debug else None,
+                data_format=data_format,
+                use_dynamic_SMILES=use_dynamic_SMILES
+            )
+            dataloaders[test_split_name] = DataLoader(
+                test_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=num_workers,
+                pin_memory=True
+            )
+
     return dataloaders
 
 if __name__ == '__main__':
