@@ -7,7 +7,7 @@ import torch
 import numpy as np
 from utils import load_configs, prepare_saving_dir, prepare_tensorboard, get_optimizer, get_scheduler, save_checkpoint, \
     load_checkpoint, visualize_predictions, apply_random_masking
-from multi_ligand_dataset import prepare_dataloaders, idx2ligand, build_ligand2idx
+from multi_ligand_dataset import prepare_dataloaders, build_ligand2idx
 from multi_ligand_model import prepare_model
 import tqdm
 import torchmetrics
@@ -17,7 +17,7 @@ from collections import defaultdict
 from sklearn.metrics import f1_score as sk_f1
 import copy
 
-def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0,
+def calculate_loss(logits, labels, ligands = None, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0,
                    label_smoothing=0.0, **kwargs):
     """
     Calculates the loss using either weighted BCE or focal loss.
@@ -25,7 +25,7 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
     Args:
         logits (Tensor): Logits output from the model.
         labels (Tensor): Ground truth labels.
-        ligand_idx (Tensor): Index of ligand to use.
+        ligands (Tensor): Names of the ligands in the batch.
         smoothed_pos_weight (float, optional): Smoothed positive class weight. Defaults to None.
         device (str): Device to use (e.g., 'cuda' or 'cpu').
         alpha (float): Weight smoothing parameter for dynamic class balancing. Defaults to 0.9.
@@ -108,7 +108,7 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
 
     use_pos_weighting = configs.use_positive_weighting_for_binding_sites
     use_dataset_weighting = configs.use_dataset_weighting
-    if configs and hasattr(configs, 'ligands') and hasattr(configs, 'dataset_weight') and ligand_idx is not None:
+    if configs and hasattr(configs, 'ligands') and hasattr(configs, 'dataset_weight') and ligands is not None:
         ligand_names = configs.ligands
         if use_dataset_weighting and hasattr(configs, 'dataset_weight'):
             dataset_weight = configs.dataset_weight_plinder if configs.dataset_format == "PLINDER" else configs.dataset_weight
@@ -116,16 +116,13 @@ def calculate_loss(logits, labels, ligand_idx = None, smoothed_pos_weight=None, 
             dataset_weight = {}
         pos_weight_dict = configs.pos_dataset_weight_plinder if configs.dataset_format == "PLINDER" else configs.pos_dataset_weight
 
-        batch_ligand_names = [ligand_names[idx.item()] for idx in ligand_idx]
-
         batch_sample_weights = torch.tensor(
-            [dataset_weight.get(name, 1.0) for name in batch_ligand_names],
+            [dataset_weight.get(name, 1.0) for name in ligands],
             device=logits.device
         )
-
         if use_pos_weighting and pos_weight_dict:
             batch_token_pos_weights = torch.tensor(
-                [pos_weight_dict.get(name, 1.0) for name in batch_ligand_names],
+                [pos_weight_dict.get(name, 1.0) for name in ligands],
                 device=logits.device
             )
             token_mask = labels.float()  # shape: [B, L]
@@ -185,8 +182,6 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
     # for keeping track of individual ligand predictions
     if verbose:
         ligand_preds_labels = defaultdict(list)
-        ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
-        idx_to_ligand = idx2ligand(ligand_names)
 
     # For logging within each epoch instead of just once every epoch since each epoch takes a long time, logging 100 times per epoch
     log_interval = max(len(trainloader) // 100, 1)
@@ -200,6 +195,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
         ligand_idx = batch["ligand_idx"].to(device)
+        ligand_names = batch["ligand"]
         # If using dynamic ligand SMILES, get the ligand SMILES from the batch
         ligand_smiles = batch.get("smiles", None)
 
@@ -234,7 +230,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
             loss, smoothed_pos_weight = calculate_loss(
                 logits=logits,
                 labels=labels,
-                ligand_idx=ligand_idx,
+                ligands=ligand_names,
                 smoothed_pos_weight=smoothed_pos_weight,
                 device=device,
                 alpha=alpha,
@@ -263,8 +259,8 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
             for b in range(batch_size):
                 for t in range(seq_len):
                     if attention_mask[b][t]:
-                        lig = int(ligand_idx[b].item())
-                        ligand_preds_labels[lig].append((
+                        ligand_name = batch["ligand"][b]
+                        ligand_preds_labels[ligand_name].append((
                             predictions[b][t].item(),
                             labels[b][t].item()
                         ))
@@ -303,9 +299,8 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
 
     if verbose and train_writer:
         train_writer.add_scalar("Macro_F1", macro_f1, epoch)
-        for lig_id, f1 in ligand_f1s.items():
-            lig_name = idx_to_ligand.get(lig_id, f"Ligand_{lig_id}")
-            train_writer.add_scalar(f"Ligand_F1/{lig_name}", f1, epoch)
+        for ligand_name, f1 in ligand_f1s.items():
+            train_writer.add_scalar(f"Ligand_F1/{ligand_name}", f1, epoch)
 
     if verbose:
         print(f"Training Accuracy: {100 * epoch_acc:.2f}%, All-Sites F1: {epoch_f1:.4f}, Macro F1: {macro_f1:.4f}")
@@ -342,8 +337,6 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
 
     if verbose:
         ligand_preds_labels = defaultdict(list)
-        ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
-        idx_to_ligand = idx2ligand(ligand_names)
 
     mixed_precision = configs.train_settings.mixed_precision if configs and hasattr(configs, "train_settings") else None
 
@@ -353,6 +346,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
         ligand_idx = batch["ligand_idx"].to(device)
+        ligand_names = batch["ligand"]
         ligand_smiles = batch.get("smiles", None)
 
         with torch.no_grad():
@@ -370,7 +364,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
                 loss, smoothed_pos_weight = calculate_loss(
                     logits=logits,
                     labels=labels,
-                    ligand_idx=ligand_idx,
+                    ligands=ligand_names,
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
                     alpha=alpha,
@@ -392,8 +386,8 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
                 for b in range(batch_size):
                     for t in range(seq_len):
                         if attention_mask[b][t]:
-                            lig = int(ligand_idx[b].item())
-                            ligand_preds_labels[lig].append((
+                            ligand_name = batch["ligand"][b]
+                            ligand_preds_labels[ligand_name].append((
                                 predictions[b][t].item(),
                                 labels[b][t].item()
                             ))
@@ -425,8 +419,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     print(f"Epoch: {epoch}, Validation Accuracy: {100 * valid_acc:.2f}%, All-Sites F1 Score: {valid_f1:.4f}, Macro F1: {macro_f1:.4f}")
 
     if verbose:
-        for lig_id, f1 in ligand_f1s.items():
-            lig_name = idx_to_ligand.get(lig_id, f"Ligand_{lig_id}")
+        for lig_name, f1 in ligand_f1s.items():
             print(f"  {lig_name}: F1 = {f1:.4f}")
             if valid_writer:
                 valid_writer.add_scalar(f"Ligand_F1/{lig_name}", f1, epoch)
@@ -472,14 +465,13 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
     mixed_precision = configs.train_settings.mixed_precision if configs and hasattr(configs, "train_settings") else None
 
     ligand_preds_labels = defaultdict(list)
-    ligand_names = configs.ligands if configs and hasattr(configs, "ligands") else []
-    idx_to_ligand = idx2ligand(ligand_names)
 
     for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc="Testing Model"):
         inputs = batch["input_ids"].to(device)
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
         ligand_idx = batch["ligand_idx"].to(device)
+        ligand_names = batch["ligand"]
         ligand_smiles = batch.get("smiles", None)
 
         with torch.no_grad():
@@ -497,7 +489,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
                 loss, smoothed_pos_weight = calculate_loss(
                     logits=logits,
                     labels=labels,
-                    ligand_idx=ligand_idx,
+                    ligands=ligand_names,
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
                     alpha=alpha,
@@ -515,7 +507,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
 
             batch_size, seq_len = logits.shape[:2]
             for b in range(batch_size):
-                ligand = int(ligand_idx[b].item())
+                ligand = batch["ligand"][b]
                 for t in range(seq_len):
                     if attention_mask[b][t]:
                         pred = predictions[b * seq_len + t]
@@ -584,11 +576,10 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
     print("\n=== F1 Score Per Ligand ===")
 
     ligand_f1s = []
-    for ligand_idx, pairs in ligand_preds_labels.items():
+    for name, pairs in ligand_preds_labels.items():
         preds, labels = zip(*pairs)
         f1 = sk_f1(labels, preds, zero_division=0)
         ligand_f1s.append(f1)
-        name = idx_to_ligand.get(ligand_idx, str(ligand_idx))
         print(f"{name}: F1 = {f1:.4f} ({len(pairs)} classification points)")
 
     if ligand_f1s:
@@ -673,11 +664,11 @@ def make_inferences(model, tokenizer, data_path, device, ligand, ligand2idx, max
 def main(dict_config, config_file_path):
 
     # Flags for convenience
-    train = False
+    train = True
     on_hellbender = True
     save_best_checkpoint = True
     save_intermediate_checkpoints = True
-    use_checkpoint = True
+    use_checkpoint = False
     visualize = False
     test = True
     inference = False
