@@ -1,0 +1,3 @@
+git+https://github.com/dptech-corp/Uni-Core.git@main#egg=unicore
+rdkit-pypi==2022.9.5
+numba
