@@ -70,6 +70,7 @@ class LigandDataset(Dataset):
             "plinder": self._load_plinder_format,
             "biolip_zero_shot": self._load_zero_shot_format,
             "zero_shot": self._load_zero_shot_format,
+            "new_plinder": self._load_new_plinder_format,
         }
 
         if self.data_format not in loader_map:
@@ -116,6 +117,35 @@ class LigandDataset(Dataset):
                 label_str = row["binding_sites_labels"]
                 if isinstance(label_str, str):
                     label_str = label_str.strip('"')
+                    if len(sequence) == len(label_str):
+                        sample = {
+                            "sequence": sequence,
+                            "label": label_str,
+                            "ligand": ligand,
+                            "ligand_idx": self.ligand2idx[ligand]
+                        }
+                        if self.use_dynamic_SMILES:
+                            sample["smiles"] = row.get("ligand_rdkit_canonical_smiles", "")
+                        self.data.append(sample)
+
+    def _load_new_plinder_format(self, ligand_list, data_root, split):
+        csv_map = {
+            "train": "train.csv",
+            "eval": "val.csv",
+            "test": "test.csv"
+        }
+        csv_dir = os.path.join(data_root, "NEW_PLINDER")
+        csv_path = os.path.join(csv_dir, csv_map[split])
+        df = pd.read_csv(csv_path)
+
+        for _, row in df.iterrows():
+            ligand = row["ligand_code"]
+            if ligand in self.ligand2idx:
+                sequence = row["protein_sequence"]
+                label_str = row["binding_sites"]
+
+                if isinstance(label_str, str):
+                    label_str = label_str.replace(" ", "")
                     if len(sequence) == len(label_str):
                         sample = {
                             "sequence": sequence,
