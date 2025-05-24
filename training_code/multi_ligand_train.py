@@ -170,9 +170,15 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
     """
     accuracy = torchmetrics.Accuracy(task="binary")
     f1_score = torchmetrics.F1Score(task="binary")
+    precision = torchmetrics.Precision(task="binary")
+    recall = torchmetrics.Recall(task="binary")
+    specificity = torchmetrics.Specificity(task="binary")
+    mcc = torchmetrics.MatthewsCorrCoef(task="binary")
+    auroc = torchmetrics.AUROC(task="binary")
 
-    accuracy.to(device)
-    f1_score.to(device)
+    for metric in [accuracy, f1_score, precision, recall, specificity, mcc, auroc]:
+        metric.to(device)
+
     model.train()
     running_loss = 0.0
     smoothed_pos_weight = None
@@ -252,8 +258,16 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         predictions = (probs > 0.5).long()
         predictions = predictions.squeeze(-1)
         batch_size, seq_len = predictions.shape
-        accuracy.update(predictions.view(-1), labels.view(-1))
-        f1_score.update(predictions.view(-1), labels.view(-1))
+
+        flat_preds = predictions.view(-1)
+        flat_labels = labels.view(-1)
+        accuracy.update(flat_preds, flat_labels)
+        f1_score.update(flat_preds, flat_labels)
+        precision.update(flat_preds, flat_labels)
+        recall.update(flat_preds, flat_labels)
+        specificity.update(flat_preds, flat_labels)
+        mcc.update(flat_preds, flat_labels)
+        auroc.update(flat_preds.float(), flat_labels)
 
         if verbose:
             for b in range(batch_size):
@@ -274,9 +288,14 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
     avg_train_loss = running_loss / len(trainloader)
     epoch_acc = accuracy.compute().cpu().item()
     epoch_f1 = f1_score.compute().cpu().item()
+    epoch_precision = precision.compute().cpu().item()
+    epoch_recall = recall.compute().cpu().item()
+    epoch_specificity = specificity.compute().cpu().item()
+    epoch_mcc = mcc.compute().cpu().item()
+    epoch_auroc = auroc.compute().cpu().item()
 
-    accuracy.reset()
-    f1_score.reset()
+    for metric in [accuracy, f1_score, precision, recall, specificity, mcc, auroc]:
+        metric.reset()
 
     if verbose:
         ligand_f1s = {}
@@ -295,6 +314,11 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         train_writer.add_scalar("F1_Score", epoch_f1, epoch)
         lr = optimizer.param_groups[0]["lr"]
         train_writer.add_scalar("Learning_Rate", lr, epoch)
+        train_writer.add_scalar("Precision", epoch_precision, epoch)
+        train_writer.add_scalar("Recall", epoch_recall, epoch)
+        train_writer.add_scalar("Specificity", epoch_specificity, epoch)
+        train_writer.add_scalar("MCC", epoch_mcc, epoch)
+        train_writer.add_scalar("AUROC", epoch_auroc, epoch)
 
 
     if verbose and train_writer:
@@ -325,9 +349,14 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     """
     accuracy = torchmetrics.Accuracy(task="binary")
     f1_score = torchmetrics.F1Score(task="binary")
+    precision = torchmetrics.Precision(task="binary")
+    recall = torchmetrics.Recall(task="binary")
+    specificity = torchmetrics.Specificity(task="binary")
+    mcc = torchmetrics.MatthewsCorrCoef(task="binary")
+    auroc = torchmetrics.AUROC(task="binary")
 
-    accuracy.to(device)
-    f1_score.to(device)
+    for metric in [accuracy, f1_score, precision, recall, specificity, mcc, auroc]:
+        metric.to(device)
 
     model.eval()
     valid_loss = 0.0
@@ -379,8 +408,16 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
             predictions = (probs > 0.5).long()
             predictions = predictions.squeeze(-1)
             batch_size, seq_len = predictions.shape
-            accuracy.update(predictions.view(-1), labels.view(-1))
-            f1_score.update(predictions.view(-1), labels.view(-1))
+
+            flat_preds = predictions.view(-1)
+            flat_labels = labels.view(-1)
+            accuracy.update(flat_preds, flat_labels)
+            f1_score.update(flat_preds, flat_labels)
+            precision.update(flat_preds, flat_labels)
+            recall.update(flat_preds, flat_labels)
+            specificity.update(flat_preds, flat_labels)
+            mcc.update(flat_preds, flat_labels)
+            auroc.update(flat_preds.float(), flat_labels)
 
             if verbose:
                 for b in range(batch_size):
@@ -395,9 +432,14 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
     avg_valid_loss = valid_loss / len(testloader)
     valid_acc = accuracy.compute().cpu().item()
     valid_f1 = f1_score.compute().cpu().item()
+    valid_precision = precision.compute().cpu().item()
+    valid_recall = recall.compute().cpu().item()
+    valid_specificity = specificity.compute().cpu().item()
+    valid_mcc = mcc.compute().cpu().item()
+    valid_auroc = auroc.compute().cpu().item()
 
-    accuracy.reset()
-    f1_score.reset()
+    for metric in [accuracy, f1_score, precision, recall, specificity, mcc, auroc]:
+        metric.reset()
 
     if verbose:
         ligand_f1s = {}
@@ -415,6 +457,11 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
         valid_writer.add_scalar("Accuracy", valid_acc, epoch)
         valid_writer.add_scalar("F1_Score", valid_f1, epoch)
         valid_writer.add_scalar("Macro_F1", macro_f1, epoch)
+        valid_writer.add_scalar("Precision", valid_precision, epoch)
+        valid_writer.add_scalar("Recall", valid_recall, epoch)
+        valid_writer.add_scalar("Specificity", valid_specificity, epoch)
+        valid_writer.add_scalar("MCC", valid_mcc, epoch)
+        valid_writer.add_scalar("AUROC", valid_auroc, epoch)
 
     print(f"Epoch: {epoch}, Validation Accuracy: {100 * valid_acc:.2f}%, All-Sites F1 Score: {valid_f1:.4f}, Macro F1: {macro_f1:.4f}")
 
@@ -424,7 +471,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
             if valid_writer:
                 valid_writer.add_scalar(f"Ligand_F1/{lig_name}", f1, epoch)
 
-    return avg_valid_loss, valid_f1, macro_f1
+    return avg_valid_loss, valid_f1, macro_f1, valid_precision, valid_recall, valid_specificity, valid_mcc, valid_auroc
 
 
 def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9, gamma=2.0, label_smoothing=0.0, **kwargs):
@@ -444,11 +491,12 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
     f1_score = torchmetrics.F1Score(task="binary")
     precision = torchmetrics.Precision(task="binary")
     recall = torchmetrics.Recall(task="binary")
+    specificity = torchmetrics.Specificity(task="binary")
+    mcc = torchmetrics.MatthewsCorrCoef(task="binary")
+    auroc = torchmetrics.AUROC(task="binary")
 
-    accuracy.to(device)
-    f1_score.to(device)
-    precision.to(device)
-    recall.to(device)
+    for metric in [accuracy, f1_score, precision, recall, specificity, mcc, auroc]:
+        metric.to(device)
 
     model.eval()
     test_loss = 0.0
@@ -524,11 +572,15 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
                         elif pred == 0 and true_label == 1:  # False Negative
                             false_negative_confidences.append(prob)
 
-            # Update Metrics
-            accuracy.update(torch.tensor(predictions), torch.tensor(labels.float().cpu().numpy().flatten()))
-            f1_score.update(torch.tensor(predictions), torch.tensor(labels.float().cpu().numpy().flatten()))
-            precision.update(torch.tensor(predictions), torch.tensor(labels.float().cpu().numpy().flatten()))
-            recall.update(torch.tensor(predictions), torch.tensor(labels.float().cpu().numpy().flatten()))
+            flat_preds = torch.tensor(predictions, device=device).view(-1)
+            flat_labels = labels.view(-1)
+            accuracy.update(flat_preds, flat_labels)
+            f1_score.update(flat_preds, flat_labels)
+            precision.update(flat_preds, flat_labels)
+            recall.update(flat_preds, flat_labels)
+            specificity.update(flat_preds, flat_labels)
+            mcc.update(flat_preds, flat_labels)
+            auroc.update(flat_preds.float(), flat_labels)
 
             # Collect predictions and labels for further analysis
             all_predictions.extend(predictions)
@@ -540,11 +592,12 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
     test_f1 = f1_score.compute().cpu().item()
     test_precision = precision.compute().cpu().item()
     test_recall = recall.compute().cpu().item()
+    test_specificity = specificity.compute().cpu().item()
+    test_mcc = mcc.compute().cpu().item()
+    test_auroc = auroc.compute().cpu().item()
 
-    accuracy.reset()
-    f1_score.reset()
-    precision.reset()
-    recall.reset()
+    for metric in [accuracy, f1_score, precision, recall, specificity, mcc, auroc]:
+        metric.reset()
 
     # Confusion Matrix
     all_predictions = np.array(all_predictions)
@@ -558,6 +611,9 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
     print(f"All-Sites F1 Score: {test_f1:.4f}")
     print(f"Precision: {test_precision:.4f}")
     print(f"Recall: {test_recall:.4f}")
+    print(f"Specificity: {test_specificity:.4f}")
+    print(f"Matthews Correlation Coefficient (MCC): {test_mcc:.4f}")
+    print(f"AUROC: {test_auroc:.4f}")
     print(f"True Positives: {tp}, False Positives: {fp}")
     print(f"True Negatives: {tn}, False Negatives: {fn}")
     print(f"Fraction of Positive Predictions: {np.sum(all_predictions) / len(all_predictions):.4f}")
@@ -594,6 +650,9 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
         "f1_score": test_f1,
         "precision": test_precision,
         "recall": test_recall,
+        "specificity": test_specificity,
+        "mcc": test_mcc,
+        "auroc": test_auroc,
         "true_positives": tp,
         "false_positives": fp,
         "true_negatives": tn,
@@ -755,13 +814,19 @@ def main(dict_config, config_file_path):
                                                        label_smoothing=label_smoothing, verbose=False,
                                                        configs=configs)
 
-            valid_loss, _, macro_f1 = validation_loop(model, validloader, epoch, device, valid_writer=valid_writer,
+            valid_loss, _, macro_f1, precision, recall, specificity, mcc, auroc = validation_loop(model, validloader, epoch, device, valid_writer=valid_writer,
                                                    alpha=alpha, gamma=gamma,
                                                    label_smoothing=label_smoothing,configs=configs)
             scheduler.step()
             if save_best_checkpoint:
                 if macro_f1 > best_f1:
                     best_f1 = macro_f1
+                    best_epoch = epoch
+                    best_precision = precision
+                    best_recall = recall
+                    best_specificity = specificity
+                    best_mcc = mcc
+                    best_auroc = auroc
                     best_model_state = {
                         'model': copy.deepcopy(model.state_dict()),
                         'optimizer': copy.deepcopy(optimizer.state_dict()),
@@ -778,7 +843,8 @@ def main(dict_config, config_file_path):
             scheduler.load_state_dict(best_model_state['scheduler'])
             scaler.load_state_dict(best_model_state['scaler'])
             save_checkpoint(model, optimizer, scheduler, scaler, best_model_state['epoch'], checkpoint_path)
-        print(f"Best Validation Macro F1 Score: {best_f1:.4f}")
+        print(f"Best Validation Macro F1 Score: {best_f1:.4f} at epoch {best_epoch + 1}/{num_epochs}")
+        print(f"Other metrics: Precision: {best_precision:.4f}, Recall: {best_recall:.4f}, Specificity: {best_specificity:.4f}, MCC: {best_mcc:.4f}, AUROC: {best_auroc:.4f}")
 
     if test:
         print("Testing model on test dataset")
