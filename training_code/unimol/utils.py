@@ -5,6 +5,7 @@ from unimol2.models.unimol2 import UniMol2Model  # type: ignore
 from unimol2.data.molecule_dataset import smi2_graph_features  # type: ignore
 from rdkit.Chem import GetPeriodicTable
 
+
 def _compute_padded_node_count(atom_counts):
     """
     Compute uniform node count for batching using the same block rounding as the finetune collater.
@@ -52,6 +53,7 @@ def _pad_batch_features(feats, max_N):
                 pf[k] = arr
         padded.append(pf)
     return padded
+
 
 # Predefined model configurations
 MODEL_CONFIGS = {
@@ -178,7 +180,8 @@ def featurize(smiles, device: torch.device) -> dict:
 
     This routine calls smi2_graph_features for each SMILES, collects atom and edge features,
     stacks them into batch dimension, and builds model inputs:
-      - node/atom features and masks
+      - node/atom features
+      - mask: binary mask tensor indicating valid tokens (1) vs padding (0), shape (batch, N)
       - edge attributes and spatial relations
       - src_token: atomic numbers tensor (batch, N)
       - src_pos: placeholder positions tensor (batch, N, 3)
@@ -188,7 +191,7 @@ def featurize(smiles, device: torch.device) -> dict:
         device (torch.device): Device to place the returned tensors on.
 
     Returns:
-        dict: Dictionary of batched torch.Tensors keyed by model input names.
+        dict: Dictionary of batched torch.Tensors keyed by model input names (including 'mask').
     """
     # support single SMILES or batch of SMILES
     if isinstance(smiles, (list, tuple)):
@@ -208,13 +211,14 @@ def featurize(smiles, device: torch.device) -> dict:
             batched[k] = torch.cat(tensors, dim=0)
         tokens = []
         for f in feats:
+            n = len(f['atoms_token'])
             nums = [pt.GetAtomicNumber(sym) for sym in f['atoms_token']]
-            # pad atomic numbers to max_N with pad index 0
-            pad_len = max_N - len(nums)
-            if pad_len > 0:
-                nums = nums + [0] * pad_len
+            pad_len = max_N - n
+            nums = nums + [0] * pad_len
             tokens.append(torch.LongTensor(nums).unsqueeze(0).to(device))
         batched['src_token'] = torch.cat(tokens, dim=0)
+        # mask valid tokens (non-zero) vs pad (zero) efficiently
+        batched['mask'] = batched['src_token'].ne(0).long()
         B = len(tokens)
         # src_pos is padded to (batch, max_N, 3)
         batched['src_pos'] = torch.zeros(B, max_N, 3, device=device)
@@ -224,9 +228,12 @@ def featurize(smiles, device: torch.device) -> dict:
     feat = smi2_graph_features(smiles)
     batched = {k: torch.tensor(v).unsqueeze(0).to(device) for k, v in feat.items() if k != 'atoms_token'}
     pt = GetPeriodicTable()
+    n = len(feat['atoms_token'])
     nums = [pt.GetAtomicNumber(sym) for sym in feat['atoms_token']]
     batched['src_token'] = torch.LongTensor(nums).unsqueeze(0).to(device)
+    # define sequence length N
     N = batched['src_token'].size(1)
+    # mask valid tokens (non-zero) vs pad (zero)
+    batched['mask'] = batched['src_token'].ne(0).long()
     batched['src_pos'] = torch.zeros(1, N, 3, device=device)
     return batched
-
