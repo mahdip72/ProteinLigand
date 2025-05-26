@@ -7,14 +7,15 @@ use_positive_weighting_for_binding_sites: false
 use_dataset_weighting: false # true
 use_dynamic_SMILES: true # Using dynamic SMILES representation based on dataset instead of static dictionary
 model:
+  cache_dir: "/home/dc57y/data/transformers_cache/"
   backbone_dropout_rate: 0.3
   classifier_dropout_rate: 0.5
   last_state_dropout_rate: 0.0
   freeze_backbone: true
   num_unfrozen_layers: 6 #3
   freeze_embeddings: true
-  hidden_size: 1280
-  model_name: facebook/esm2_t33_650M_UR50D
+  hidden_size: 5120
+  model_name: "facebook/esm2_t48_15B_UR50D"
   structure_aware: false
   dtype: "bfloat16"
   # chemical encoder configs
@@ -56,13 +57,13 @@ scheduler:
   name: cosine_annealing
 tensorboard_log: true
 test_settings:
-  batch_size: 16
+  batch_size: 32
   num_workers: 4
   test_splits: [ "underrepresented_test", "overrepresented_test", "zero_shot_test" ] # comment out if not using zero shot dataset
 tqdm_progress_bar: true
 train_settings:
   alpha: 0.9
-  batch_size: 16
+  batch_size: 32
   gamma: 1.5
   grad_accumulation: 4
   grad_clip_norm: 1
@@ -78,7 +79,7 @@ transformer_head:
   dim_feedforward: 2048
   dropout: 0.3
 valid_settings:
-  batch_size: 64
+  batch_size: 32
   num_workers: 4
 data_root: "./data"
 noise_std: 0.05 # experimental results show 0.05 works best
@@ -211,172 +212,172 @@ ligands:
 #- UPG
 #- ZN2
   # ZERO SHOT
-- 2BA
-- 5GP
-- 6OU
-- 8CT
-- A3P
-- A86
-- AC1
-- ACO
-- ACP
-- ACT
-- ADE
-- ADN
-- ADP
-- AF3
-- AGS
-- AJP
-- AKG
-- ALA
-- ALF
-- AMP
-- ANP
-- APC
-- APR
-- AR6
-- ARG
-- ASP
-- ATP
-- AYE
-- AZI
-- B12
-- BCL
-- BCT
-- BDP
-- BEF
-- BGC
-- BLA
-- BMA
-- BPH
-- BTI
-- BTN
-- BU3
-- C2E
-- C5P
-- C8E
-- CA
-- CDP
-- CHL
-- CL
-- CLA
-- CLR
-- CMP
-- CO
-- CO3
-- COA
-- COM
-- CTP
-- CU
-- CU1
-- CYC
-- CYS
-- DD6
-- DMU
-- DTP
-- F3S
-- FAD
-- FBP
-- FDA
-- FE
-- FE2
-- FES
-- FLC
-- FMN
-- FRU
-- FUC
-- G4P
-- G6P
-- GAL
-- GDP
-- GLA
-- GLC
-- GLN
-- GLU
-- GLY
-- GNP
-- GOL
-- GSH
-- GSP
-- GTP
-- HEB
-- HEC
-- HEM
-- HIS
-- I3P
-- IHP
-- IHT
-- II0
-- IMP
-- K
-- KC1
-- KC2
-- LBN
-- LEU
-- LMN
-- LYS
-- MAN
-- MET
-- MG
-- MGD
-- MN
-- MTA
-- NAD
-- NAI
-- NAP
-- NDP
-- NI
-- O
-- OXL
-- OXY
-- P5S
-- PEB
-- PEP
-- PGW
-- PHE
-- PHO
-- PID
-- PIO
-- PLP
-- PLX
-- PMP
-- PNS
-- PO4
-- POP
-- PQN
-- PQQ
-- PRO
-- PYR
-- RBF
-- RET
-- SAH
-- SAM
-- SER
-- SF4
-- SFG
-- SIA
-- SO3
-- SO4
-- STU
-- TPP
-- TRP
-- TTP
-- TYD
-- TYR
-- U10
-- U5P
-- UD1
-- UDP
-- UIX
-- UMP
-- UPG
-- UQ8
-- UTP
-- WO4
-- XYP
-- XYS
-- Y01
-- ZN
+  - 2BA
+  - 5GP
+  - 6OU
+  - 8CT
+  - A3P
+  - A86
+  - AC1
+  - ACO
+  - ACP
+  - ACT
+  - ADE
+  - ADN
+  - ADP
+  - AF3
+  - AGS
+  - AJP
+  - AKG
+  - ALA
+  - ALF
+  - AMP
+  - ANP
+  - APC
+  - APR
+  - AR6
+  - ARG
+  - ASP
+  - ATP
+  - AYE
+  - AZI
+  - B12
+  - BCL
+  - BCT
+  - BDP
+  - BEF
+  - BGC
+  - BLA
+  - BMA
+  - BPH
+  - BTI
+  - BTN
+  - BU3
+  - C2E
+  - C5P
+  - C8E
+  - CA
+  - CDP
+  - CHL
+  - CL
+  - CLA
+  - CLR
+  - CMP
+  - CO
+  - CO3
+  - COA
+  - COM
+  - CTP
+  - CU
+  - CU1
+  - CYC
+  - CYS
+  - DD6
+  - DMU
+  - DTP
+  - F3S
+  - FAD
+  - FBP
+  - FDA
+  - FE
+  - FE2
+  - FES
+  - FLC
+  - FMN
+  - FRU
+  - FUC
+  - G4P
+  - G6P
+  - GAL
+  - GDP
+  - GLA
+  - GLC
+  - GLN
+  - GLU
+  - GLY
+  - GNP
+  - GOL
+  - GSH
+  - GSP
+  - GTP
+  - HEB
+  - HEC
+  - HEM
+  - HIS
+  - I3P
+  - IHP
+  - IHT
+  - II0
+  - IMP
+  - K
+  - KC1
+  - KC2
+  - LBN
+  - LEU
+  - LMN
+  - LYS
+  - MAN
+  - MET
+  - MG
+  - MGD
+  - MN
+  - MTA
+  - NAD
+  - NAI
+  - NAP
+  - NDP
+  - NI
+  - O
+  - OXL
+  - OXY
+  - P5S
+  - PEB
+  - PEP
+  - PGW
+  - PHE
+  - PHO
+  - PID
+  - PIO
+  - PLP
+  - PLX
+  - PMP
+  - PNS
+  - PO4
+  - POP
+  - PQN
+  - PQQ
+  - PRO
+  - PYR
+  - RBF
+  - RET
+  - SAH
+  - SAM
+  - SER
+  - SF4
+  - SFG
+  - SIA
+  - SO3
+  - SO4
+  - STU
+  - TPP
+  - TRP
+  - TTP
+  - TYD
+  - TYR
+  - U10
+  - U5P
+  - UD1
+  - UDP
+  - UIX
+  - UMP
+  - UPG
+  - UQ8
+  - UTP
+  - WO4
+  - XYP
+  - XYS
+  - Y01
+  - ZN
 ## NEW PLINDER TOP 77
 #- 0AT
 #- ACT
