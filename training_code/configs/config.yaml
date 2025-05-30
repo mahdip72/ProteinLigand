@@ -8,18 +8,22 @@ use_dataset_weighting: false # true
 use_dynamic_SMILES: true # Using dynamic SMILES representation based on dataset instead of static dictionary
 model:
   cache_dir: "/home/dc57y/data/transformers_cache/"
+  use_compile: false
   backbone_dropout_rate: 0.3
   classifier_dropout_rate: 0.5
   last_state_dropout_rate: 0.0
   freeze_backbone: true
   num_unfrozen_layers: 6 #3
   freeze_embeddings: true
-  hidden_size: 5120
-  model_name: "facebook/esm2_t48_15B_UR50D"
+  hidden_size: 1280
+  model_name: "facebook/esm2_t33_650M_UR50D"
   structure_aware: false
   dtype: "bfloat16"
   # chemical encoder configs
   use_chemical_encoder: true
+  chemical_encoder_source: "unimol"  # "unimol", "huggingface"
+  huggingface_model_name: "ibm-research/MoLFormer-XL-both-10pct" # Provided name if using huggingface
+  unimol_model_size: "84M" # Provided model size if using unimol, options: "84M", "164M", "310M", "570M", "1.1B"
   chemical_encoder_num_unfrozen_layers: 3
   unfreeze_clm_embeddings: false
   clm_max_length: 128
@@ -82,8 +86,8 @@ valid_settings:
   batch_size: 32
   num_workers: 4
 data_root: "./data"
-noise_std: 0.05 # experimental results show 0.05 works best
-mask_prob: 0.00 # 0.15
+noise_std: 0.05
+mask_prob: 0.00
 mask_token_id: 32
 ligands:
 # TOP 10 BIOLIP

@@ -369,16 +369,16 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
 
     mixed_precision = configs.train_settings.mixed_precision if configs and hasattr(configs, "train_settings") else None
 
-    for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc=f"Validation Epoch {epoch + 1}",
-                              leave=False):
-        inputs = batch["input_ids"].to(device)
-        attention_mask = batch["attention_mask"].to(device)
-        labels = batch["labels"].to(device)
-        ligand_idx = batch["ligand_idx"].to(device)
-        ligand_names = batch["ligand"]
-        ligand_smiles = batch.get("smiles", None)
+    with torch.no_grad():
+        for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc=f"Validation Epoch {epoch + 1}",
+                                  leave=False):
+            inputs = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels = batch["labels"].to(device)
+            ligand_idx = batch["ligand_idx"].to(device)
+            ligand_names = batch["ligand"]
+            ligand_smiles = batch.get("smiles", None)
 
-        with torch.no_grad():
             if mixed_precision == "fp16":
                 autocast_dtype = torch.float16
             elif mixed_precision == "bf16":
@@ -514,15 +514,15 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
 
     ligand_preds_labels = defaultdict(list)
 
-    for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc="Testing Model"):
-        inputs = batch["input_ids"].to(device)
-        attention_mask = batch["attention_mask"].to(device)
-        labels = batch["labels"].to(device)
-        ligand_idx = batch["ligand_idx"].to(device)
-        ligand_names = batch["ligand"]
-        ligand_smiles = batch.get("smiles", None)
+    with torch.inference_mode():
+        for i, batch in tqdm.tqdm(enumerate(testloader), total=len(testloader), desc="Testing Model"):
+            inputs = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels = batch["labels"].to(device)
+            ligand_idx = batch["ligand_idx"].to(device)
+            ligand_names = batch["ligand"]
+            ligand_smiles = batch.get("smiles", None)
 
-        with torch.no_grad():
             if mixed_precision == "fp16":
                 autocast_dtype = torch.float16
             elif mixed_precision == "bf16":
@@ -693,7 +693,7 @@ def make_inferences(model, tokenizer, data_path, device, ligand, ligand2idx, max
     batch_size = 512
     ligand_idx = ligand2idx[ligand]
 
-    with torch.no_grad():
+    with torch.inference_mode():
         for i in tqdm.tqdm(range(0, len(valid_sequences), batch_size), desc="Running inference"):
             batch_seqs = valid_sequences[i:i + batch_size]
             encodings = tokenizer(batch_seqs, return_tensors="pt", padding="max_length",
@@ -769,6 +769,10 @@ def main(dict_config, config_file_path):
     tokenizer, model = prepare_model(configs)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
+
+    if torch.cuda.is_available() and hasattr(torch, "compile") and configs.model.use_compile:
+        print("Compiling model with torch.compile()")
+        model = torch.compile(model)
 
     print("Finished preparing model, using device:", device)
 
@@ -855,6 +859,20 @@ def main(dict_config, config_file_path):
                 print(f"Evaluating {name} dataset")
                 results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha,
                                           gamma=gamma, label_smoothing=label_smoothing, configs=configs)
+                # For convenience, saving important test results to CSV
+                import csv
+                from pathlib import Path
+                results["model_name"] = configs.model.model_name
+                results["hidden_size"] = configs.model.hidden_size
+                results["test_set_name"] = name
+                results["fix_seed"] = configs.fix_seed
+                log_path = Path("logs/ablation_results.csv")
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                with log_path.open("a", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=results.keys())
+                    if f.tell() == 0:
+                        writer.writeheader()
+                    writer.writerow(results)
         else:
             results = evaluation_loop(model, testloader, device, log_confidences=False, alpha=alpha, gamma=gamma,
                                       label_smoothing=label_smoothing, configs=configs)

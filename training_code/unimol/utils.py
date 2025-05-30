@@ -146,7 +146,7 @@ def get_model_args(size: str) -> argparse.Namespace:
     )
 
 
-def load_model(size: str, device: torch.device) -> UniMol2Model:
+def load_model(size: str, device: torch.device, cache_dir = None) -> UniMol2Model:
     """
     Download and load a pretrained UniMol2 model checkpoint by size, map to device, and set to evaluation mode.
 
@@ -160,7 +160,10 @@ def load_model(size: str, device: torch.device) -> UniMol2Model:
     args = get_model_args(size)
     model = UniMol2Model(args)
     filename = f"modelzoo/{size}/checkpoint.pt"
-    checkpoint_path = hf_hub_download(repo_id=REPO_ID, filename=filename)
+    if cache_dir:
+        checkpoint_path = hf_hub_download(repo_id=REPO_ID, filename=filename, cache_dir=cache_dir)
+    else:
+        checkpoint_path = hf_hub_download(repo_id=REPO_ID, filename=filename)
     state = torch.load(checkpoint_path, map_location="cpu")
     model.load_state_dict(state.get("model", state), strict=False)
     model.eval()

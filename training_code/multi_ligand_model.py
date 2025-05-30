@@ -1,11 +1,11 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 import torch
 from torch import nn
 from multi_ligand_dataset import idx2ligand
+import torch.nn.functional as F
 
 class LigandPredictionModel(nn.Module):
     def __init__(self, configs, num_labels=1):
@@ -43,7 +43,11 @@ class LigandPredictionModel(nn.Module):
         # 2. Load the pretrained transformer
         config = AutoConfig.from_pretrained(base_model_name)
         config.torch_dtype = dtype
-        self.base_model = AutoModel.from_pretrained(base_model_name, config=config)
+        cache_dir = getattr(configs.model, "cache_dir", None)
+        if cache_dir and os.path.isdir(cache_dir):
+            self.base_model = AutoModel.from_pretrained(base_model_name, config=config, cache_dir=cache_dir)
+        else:
+            self.base_model = AutoModel.from_pretrained(base_model_name, config=config)
         num_total_layers = len(self.base_model.encoder.layer)
         # option to load structure-aware model
         structure_aware = configs.model.structure_aware
@@ -99,46 +103,84 @@ class LigandPredictionModel(nn.Module):
             self.ligand_embedding = nn.Embedding(num_embeddings=num_ligands, embedding_dim=hidden_size)
         else: # Use chemical encoder
             print("Using chemical encoder for ligand representation")
-            self.smiles_tokenizer = AutoTokenizer.from_pretrained(
-                "ibm-research/MoLFormer-XL-both-10pct", trust_remote_code=True)
-            self.smiles_tokenizer.pad_token = "<pad>"
-            self.smiles_tokenizer.bos_token = "<s>"
-            self.smiles_tokenizer.eos_token = "</s>"
-            self.smiles_tokenizer.mask_token = "<unk>"
-            clm_config = AutoConfig.from_pretrained("ibm-research/MoLFormer-XL-both-10pct", trust_remote_code=True)
-            clm_config.torch_dtype = dtype
-            clm_hidden_dropout = configs.model.clm_hidden_dropout_rate if configs.model.clm_hidden_dropout_rate else 0.0
-            clm_embedding_dropout = configs.model.clm_embedding_dropout_rate if configs.model.clm_embedding_dropout_rate else 0.0
-            clm_config.hidden_dropout_prob = clm_hidden_dropout
-            clm_config.embedding_dropout_prob = clm_embedding_dropout
-            self.smiles_model = AutoModel.from_pretrained(
-                "ibm-research/MoLFormer-XL-both-10pct",
-                config=clm_config,
-                trust_remote_code=True
-            )
-
-            # Freeze everything by default (including embeddings)
-            for param in self.smiles_model.parameters():
-                param.requires_grad = False
-
-            # Unfreeze last n layers
-            last_n = configs.model.chemical_encoder_num_unfrozen_layers if hasattr(configs.model, "chemical_encoder_num_unfrozen_layers") else 0
-            if last_n > 0:
-                for param in self.smiles_model.encoder.layer[-last_n:].parameters():
-                    param.requires_grad = True
-
-            # Unfreeze embeddings if requested
-            unfreeze_clm_embeddings = configs.model.unfreeze_clm_embeddings if hasattr(configs.model, "unfreeze_clm_embeddings") else False
-            if unfreeze_clm_embeddings:
-                print("Unfreezing CLM embeddings")
-                for param in self.smiles_model.embeddings.parameters():
-                    param.requires_grad = True
-
-            self.clm_max_length = configs.model.clm_max_length
-            clm_output_dim = configs.model.clm_output_dim
+            clm_source = configs.model.chemical_encoder_source
             self.ligand_to_smiles = configs.ligand_to_smiles
             self.idx_to_ligand = idx2ligand(ligand_names)
-            # Add projector to match hidden size
+
+            if clm_source == "huggingface":
+                huggingface_model_name = configs.model.huggingface_model_name
+                print(f"Loading {huggingface_model_name} for chemical encoder")
+                if cache_dir and os.path.isdir(cache_dir):
+                    self.smiles_tokenizer = AutoTokenizer.from_pretrained(
+                        huggingface_model_name, trust_remote_code=True, cache_dir=cache_dir)
+                else:
+                    self.smiles_tokenizer = AutoTokenizer.from_pretrained(
+                        huggingface_model_name, trust_remote_code=True)
+                self.smiles_tokenizer.pad_token = "<pad>"
+                self.smiles_tokenizer.bos_token = "<s>"
+                self.smiles_tokenizer.eos_token = "</s>"
+                self.smiles_tokenizer.mask_token = "<unk>"
+                clm_config = AutoConfig.from_pretrained(huggingface_model_name, trust_remote_code=True)
+                clm_config.torch_dtype = dtype
+                clm_hidden_dropout = configs.model.clm_hidden_dropout_rate if configs.model.clm_hidden_dropout_rate else 0.0
+                clm_embedding_dropout = configs.model.clm_embedding_dropout_rate if configs.model.clm_embedding_dropout_rate else 0.0
+                clm_config.hidden_dropout_prob = clm_hidden_dropout
+                clm_config.embedding_dropout_prob = clm_embedding_dropout
+                if cache_dir and os.path.isdir(cache_dir):
+                    self.smiles_model = AutoModel.from_pretrained(
+                        huggingface_model_name,
+                        config=clm_config,
+                        trust_remote_code=True,
+                        cache_dir=cache_dir
+                    )
+                else:
+                    self.smiles_model = AutoModel.from_pretrained(
+                        huggingface_model_name,
+                        config=clm_config,
+                        trust_remote_code=True
+                    )
+
+                # Freeze everything by default (including embeddings)
+                for param in self.smiles_model.parameters():
+                    param.requires_grad = False
+
+                # Unfreeze last n layers
+                last_n = configs.model.chemical_encoder_num_unfrozen_layers if hasattr(configs.model, "chemical_encoder_num_unfrozen_layers") else 0
+                if last_n > 0:
+                    for param in self.smiles_model.encoder.layer[-last_n:].parameters():
+                        param.requires_grad = True
+
+                # Unfreeze embeddings if requested
+                unfreeze_clm_embeddings = configs.model.unfreeze_clm_embeddings if hasattr(configs.model, "unfreeze_clm_embeddings") else False
+                if unfreeze_clm_embeddings:
+                    print("Unfreezing CLM embeddings")
+                    for param in self.smiles_model.embeddings.parameters():
+                        param.requires_grad = True
+
+                self.clm_max_length = configs.model.clm_max_length
+
+
+            elif clm_source == "unimol":
+                print("Loading UniMol2 for chemical encoder")
+                from unimol.utils import load_model as load_unimol_model
+                from unimol.utils import featurize as unimol_featurize
+                model_size = configs.model.unimol_model_size
+                if cache_dir and os.path.isdir(cache_dir):
+                    self.smiles_model = load_unimol_model(model_size, torch.device("cpu"), cache_dir=cache_dir)
+                    print("Using cache directory for UniMol2 model:", cache_dir)
+                else:
+                    self.smiles_model = load_unimol_model(model_size, torch.device("cpu"))  # Might remove device logic later
+                    print("Using default cache directory for UniMol2 model")
+                self.smiles_model.eval() # Not finetuning
+                for param in self.smiles_model.parameters():
+                    param.requires_grad = False
+
+                self.unimol_featurize = unimol_featurize
+
+            else:
+                raise ValueError(f"Unsupported chemical encoder source: {clm_source}")
+
+            clm_output_dim = configs.model.clm_output_dim
             self.projector = nn.Linear(clm_output_dim, hidden_size)
             self.proj_layernorm = nn.LayerNorm(hidden_size)
 
@@ -185,7 +227,7 @@ class LigandPredictionModel(nn.Module):
         # protein_repr = outputs.last_hidden_state
         protein_repr = self.encoder_to_decoder_dropout(outputs.last_hidden_state)
 
-        # Experimental: Adding noise to the protein representation as regularization
+        # Adding noise to the protein representation as regularization
         if self.training:
             noise = torch.randn_like(protein_repr) * self.noise_std
             protein_repr = protein_repr + noise
@@ -200,30 +242,35 @@ class LigandPredictionModel(nn.Module):
                 # Use ligand_smiles directly
                 smiles_batch = ligand_smiles
 
-            encoded = self.smiles_tokenizer(smiles_batch,
-                                            max_length=self.clm_max_length,
-                                            padding='max_length',
-                                            truncation=True,
-                                            return_tensors="pt",
-                                            add_special_tokens=True).to(input_ids.device)
-            ligand_hidden = self.smiles_model(**encoded).last_hidden_state
-            ligand_repr = self.proj_layernorm(self.projector(ligand_hidden))
+            if hasattr(self, 'smiles_tokenizer'):
+                # using HuggingFace tokenizer
+                encoded = self.smiles_tokenizer(smiles_batch,
+                                                max_length=self.clm_max_length,
+                                                padding='max_length',
+                                                truncation=True,
+                                                return_tensors="pt",
+                                                add_special_tokens=True).to(input_ids.device)
+                ligand_hidden = self.smiles_model(**encoded).last_hidden_state
+                ligand_repr = self.proj_layernorm(self.projector(ligand_hidden))
+                memory_key_padding_mask = (encoded["attention_mask"] == 0).to(input_ids.device)
+            else:
+                # using UniMol2 featurization
+                print("smiles_batch:", smiles_batch)
+                featurized = self.unimol_featurize(smiles_batch, input_ids.device)
+                ligand_hidden, _ = self.smiles_model(featurized)
+                ligand_repr = self.proj_layernorm(self.projector(ligand_hidden))
+                mask = (featurized["mask"] == 0).to(input_ids.device)
+                memory_key_padding_mask = F.pad(mask, (0, 1), value=True) # Need to pad mask to match ligand_repr length
 
         else:
             ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1)
+            memory_key_padding_mask = None
         # 3. Pass through transformer
-        if self.use_chemical_encoder:
-            memory_key_padding_mask = encoded["attention_mask"] == 0  # pass in padding mask
-            transformer_output = self.transformer_decoder(
-                tgt=protein_repr,
-                memory=ligand_repr,
-                memory_key_padding_mask=memory_key_padding_mask
-            )
-        else:
-            transformer_output = self.transformer_decoder(
-                tgt=protein_repr,
-                memory=ligand_repr
-            )
+        transformer_output = self.transformer_decoder(
+            tgt=protein_repr,
+            memory=ligand_repr,
+            memory_key_padding_mask=memory_key_padding_mask
+        )
         normalized = self.norm(transformer_output)
         dropout_output = self.dropout(normalized)
         logits = self.classifier(dropout_output)
@@ -281,7 +328,10 @@ if __name__ == '__main__':
 
     # Define a sample amino acid sequence
     sequence = "MVLSPADKTNVKAAWGKVGAHAGEY"
-    labels = torch.tensor([[0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]], dtype=torch.long)
+
+    labels = torch.tensor([
+        [0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+    ], dtype=torch.long)
 
     # Tokenize the input sequence
     inputs = tokenizer(sequence, return_tensors="pt", padding=True, truncation=True, max_length=64, add_special_tokens=False)
@@ -310,20 +360,50 @@ if __name__ == '__main__':
         if model.use_chemical_encoder:
             # Map ligand_idx to SMILES
             ligand_name = model.idx_to_ligand[ligand_idx.item()]
-            smiles = model.ligand_to_smiles[ligand_name]
+            try:
+                smiles = model.ligand_to_smiles[ligand_name]
+            except KeyError:
+                print(f"Ligand '{ligand_name}' not found in ligand_to_smiles.")
+                print("Falling back to a dummy SMILES: 'CCO'.")
+                smiles = "CCO"
+
             print(f"\n[3] Ligand Name: {ligand_name}")
             print(f"[3.1] SMILES: {smiles}")
 
-            # Tokenize SMILES
-            encoded = model.smiles_tokenizer([smiles], max_length=model.clm_max_length, padding="max_length", truncation=True, return_tensors="pt").to(device)
-            print(f"[3.1.1] Tokenized SMILES Input IDs: {encoded['input_ids']}")
-            ligand_hidden = model.smiles_model(**encoded).last_hidden_state
-            print(f"[3.1.2] Ligand Hidden States Tensor First 10 Tokens: {ligand_hidden.squeeze(0)[:10]}")
-            ligand_repr = model.projector(ligand_hidden)
+            if hasattr(model, "smiles_tokenizer"):
+                # HuggingFace chemical encoder
+                encoded = model.smiles_tokenizer([smiles], max_length=model.clm_max_length,
+                                                 padding="max_length", truncation=True,
+                                                 return_tensors="pt").to(device)
+                print(f"[3.1.1] Tokenized SMILES Input IDs: {encoded['input_ids']}")
+                ligand_hidden = model.smiles_model(**encoded).last_hidden_state
+                print(f"[3.1.2] Ligand Hidden States Tensor First 10 Tokens: {ligand_hidden.squeeze(0)[:10]}")
+                ligand_repr = model.projector(ligand_hidden)
+                print(f"[3.2] CLM Embedding Shape: {ligand_repr.shape}")
+                memory_key_padding_mask = encoded["attention_mask"] == 0
 
-            print(f"[3.2] CLM Embedding Shape: {ligand_repr.shape}")
+            else:
+                # UniMol chemical encoder
 
-            memory_key_padding_mask = encoded["attention_mask"] == 0
+                if next(model.smiles_model.parameters()).device != torch.device(device):
+                    model.smiles_model.to(device)
+                featurized = model.unimol_featurize([smiles], torch.device(device)) # Unimol has a different featurization method for single SMILES so "[smiles]" is different from "smiles"
+                ligand_hidden, _ = model.smiles_model(featurized)
+                print(f"[3.1.2] UniMol Ligand Hidden States Tensor First 10 Tokens: {ligand_hidden.squeeze(0)[:10]}")
+                ligand_repr = model.projector(ligand_hidden)
+                print(f"[3.2] CLM Embedding Shape: {ligand_repr.shape}")
+                memory_key_padding_mask = (featurized["mask"] == 0).to(device)
+                B, N, _ = ligand_repr.shape
+                mask = featurized["mask"]
+
+                if mask.shape[1] != N:
+                    # Pad mask to match ligand_repr length
+                    pad_len = N - mask.shape[1]
+                    import torch.nn.functional as F
+                    mask = F.pad(mask, (0, pad_len), value=0)
+
+                memory_key_padding_mask = (mask == 0)
+
             transformer_output = model.transformer_decoder(
                 tgt=protein_repr,
                 memory=ligand_repr,
@@ -348,22 +428,22 @@ if __name__ == '__main__':
         print(f"\n[5] Final Logits Shape: {logits.shape}")
         print(f"[5.1] Final Logits (Sample):\n{logits.squeeze(0)[:10]}")  # Show first 10 tokens for readability
 
-        # Testing to see if ligand clm token max length is adequate
-        configs = test_configs
-        smiles_tokenizer = AutoTokenizer.from_pretrained("ibm-research/MoLFormer-XL-both-10pct", trust_remote_code=True)
-        smiles_tokenizer.pad_token = "<pad>"
-        smiles_tokenizer.bos_token = "<s>"
-        smiles_tokenizer.eos_token = "</s>"
-        smiles_tokenizer.mask_token = "<unk>"
-        max_length = configs.model.clm_max_length
-        ligand_to_smiles = configs.ligand_to_smiles
-        ligands = configs.ligands
-        results = []
-        for ligand in ligands:
-            smiles = ligand_to_smiles[ligand]
-            tokenized = smiles_tokenizer(smiles, return_tensors="pt")
-            length = tokenized["input_ids"].shape[1]
-            print(f"Ligand: {ligand}, SMILES: {smiles}, Token Length: {length}")
-            if length > max_length:
-                print(f"Warning: Token length {length} exceeds current max_length {max_length}")
+        # # Testing to see if ligand clm token max length is adequate
+        # configs = test_configs
+        # smiles_tokenizer = AutoTokenizer.from_pretrained("ibm-research/MoLFormer-XL-both-10pct", trust_remote_code=True)
+        # smiles_tokenizer.pad_token = "<pad>"
+        # smiles_tokenizer.bos_token = "<s>"
+        # smiles_tokenizer.eos_token = "</s>"
+        # smiles_tokenizer.mask_token = "<unk>"
+        # max_length = configs.model.clm_max_length
+        # ligand_to_smiles = configs.ligand_to_smiles
+        # ligands = configs.ligands
+        # results = []
+        # for ligand in ligands:
+        #     smiles = ligand_to_smiles[ligand]
+        #     tokenized = smiles_tokenizer(smiles, return_tensors="pt")
+        #     length = tokenized["input_ids"].shape[1]
+        #     print(f"Ligand: {ligand}, SMILES: {smiles}, Token Length: {length}")
+        #     if length > max_length:
+        #         print(f"Warning: Token length {length} exceeds current max_length {max_length}")
     # print(model)
