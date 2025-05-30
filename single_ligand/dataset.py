@@ -244,11 +244,11 @@ def analyze_data(configs):
     sorted_binding = sorted(binding_proportions.items(), key=lambda x: x[1], reverse=True)
 
     # Print results
-    print("\nAmino Acid Binding Proportions (Sorted by Binding Frequency Proportion):")
-    print(f"{'Amino Acid':<15}{'Binding Count':<15}{'Total Count':<15}{'Binding Proportion'}")
-    print("-" * 50)
-    for aa, proportion in sorted_binding:
-        print(f"{aa:<15}{binding_counts[aa]:<15}{total_counts[aa]:<15}{proportion:.4f}")
+    # print("\nAmino Acid Binding Proportions (Sorted by Binding Frequency Proportion):")
+    # print(f"{'Amino Acid':<15}{'Binding Count':<15}{'Total Count':<15}{'Binding Proportion'}")
+    # print("-" * 50)
+    # for aa, proportion in sorted_binding:
+    #     print(f"{aa:<15}{binding_counts[aa]:<15}{total_counts[aa]:<15}{proportion:.4f}")
 
     print("\nTotal Binding Proportion (Overall Across All Amino Acids):")
     print(

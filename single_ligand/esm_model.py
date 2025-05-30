@@ -40,9 +40,9 @@ class LigandPredictionModel(nn.Module):
 
         # # Load the model with bf16 precision
         # self.base_model = AutoModel.from_pretrained(
-        #     base_model_name, 
+        #     base_model_name,
         #     config=config,
-        #     torch_dtype=torch.bfloat16  
+        #     torch_dtype=torch.bfloat16
         # )
 
         # 3. Freeze backbone if requested
