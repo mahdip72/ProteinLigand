@@ -467,7 +467,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
 
     if verbose:
         for lig_name, f1 in ligand_f1s.items():
-            print(f"  {lig_name}: F1 = {f1:.4f}")
+            # print(f"  {lig_name}: F1 = {f1:.4f}") // # TODO: Commenting out for now
             if valid_writer:
                 valid_writer.add_scalar(f"Ligand_F1/{lig_name}", f1, epoch)
 
@@ -722,29 +722,29 @@ def make_inferences(model, tokenizer, data_path, device, ligand, ligand2idx, max
 
 def main(dict_config, config_file_path):
 
+    configs = load_configs(dict_config)
     # Flags for convenience
-    train = True
-    on_hellbender = True
-    save_best_checkpoint = True
-    save_intermediate_checkpoints = True
-    use_checkpoint = False
-    visualize = False
-    test = True
-    inference = False
+
+    general_settings = configs.general_settings
+    train = general_settings.train if hasattr(general_settings, "train") else True
+    on_hellbender = general_settings.on_hellbender if hasattr(general_settings, "on_hellbender") else True
+    save_best_checkpoint = general_settings.save_best_checkpoint if hasattr(general_settings, "save_best_checkpoint") else True
+    save_intermediate_checkpoints = general_settings.save_intermediate_checkpoints if hasattr(general_settings, "save_intermediate_checkpoints") else False
+    use_checkpoint = general_settings.use_checkpoint if hasattr(general_settings, "use_checkpoint") else False
+    visualize = general_settings.visualize if hasattr(general_settings, "visualize") else False
+    test = general_settings.test if hasattr(general_settings, "test") else True
+    inference = general_settings.inference if hasattr(general_settings, "inference") else False
 
     if use_checkpoint:
-        # load_checkpoint_path = "/home/dc57y/data/2025-04-28__16-04-06__PLINDER_60_CLM/checkpoints/checkpoint_epoch_12.pth"
-        # checkpoint for embedding table:
-        # load_checkpoint_path = "/home/dc57y/data/2025-04-23__20-30-35__BIOLIP_41_ET/checkpoints/checkpoint_epoch_12.pth"
-        load_checkpoint_path = "/home/dc57y/data/2025-05-08__19-29-02__ZERO_SHOT_CLM/checkpoints/checkpoint_epoch_18.pth"
-
-
+        if general_settings.checkpoint_path:
+            load_checkpoint_path = general_settings.checkpoint_path
+        else:
+            load_checkpoint_path = "/home/dc57y/data/2025-06-05__18-40-14__1280_ZERO_SHOT_570_UNIMOL/checkpoints/checkpoint_epoch_6.pth"
     else:
         load_checkpoint_path = None
 
-    configs = load_configs(dict_config)
 
-    if isinstance(configs.fix_seed, int):
+    if configs.use_fix_seed and isinstance(configs.fix_seed, int):
         torch.manual_seed(configs.fix_seed)
         np.random.seed(configs.fix_seed)
 
@@ -792,10 +792,10 @@ def main(dict_config, config_file_path):
 
     if load_checkpoint_path:
         print(f"Loading checkpoint from {load_checkpoint_path}...")
-        # start_epoch = load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler) + 1
+        start_epoch = load_checkpoint(load_checkpoint_path, model, optimizer, scheduler, scaler) + 1
         # start_epoch = load_checkpoint(load_checkpoint_path, model=model, optimizer=None, scheduler=scheduler, scaler=scaler) + 1
-        start_epoch = load_checkpoint(load_checkpoint_path, model) + 1
-        start_epoch = 0
+        # start_epoch = load_checkpoint(load_checkpoint_path, model) + 1
+        # start_epoch = 0
 
         if visualize:
             print("Visualizing predictions on test dataset")

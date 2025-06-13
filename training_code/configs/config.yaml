@@ -1,11 +1,24 @@
+# 2 UNFROZEN LAYERS
+
 checkpoints_every: 12
-data_type: ZERO_SHOT_CLM
-fix_seed: 0
+data_type: "2560_ZERO_SHOT_UNIMOL_2_UNFROZEN"
+use_fix_seed: true
+fix_seed: 5042364
 dataset_format: "zero_shot"
 max_pos_weight: 1
 use_positive_weighting_for_binding_sites: false
 use_dataset_weighting: false # true
 use_dynamic_SMILES: true # Using dynamic SMILES representation based on dataset instead of static dictionary
+general_settings:
+  train: false
+  on_hellbender: true
+  save_best_checkpoint: true
+  save_intermediate_checkpoints: false
+  use_checkpoint: true
+  visualize: false
+  test: true
+  inference: false
+  checkpoint_path: "/mnt/pixstor/data/dc57y/2025-05-24__04-16-47__ZERO_SHOT_CLM/checkpoints/checkpoint_epoch_7.pth"
 model:
   cache_dir: "/home/dc57y/data/transformers_cache/"
   use_compile: false
@@ -13,21 +26,21 @@ model:
   classifier_dropout_rate: 0.5
   last_state_dropout_rate: 0.0
   freeze_backbone: true
-  num_unfrozen_layers: 6 #3
+  num_unfrozen_layers: 0
   freeze_embeddings: true
-  hidden_size: 1280
-  model_name: "facebook/esm2_t33_650M_UR50D"
+  hidden_size: 320
+  model_name: "facebook/esm2_t36_3B_UR50D"
   structure_aware: false
   dtype: "bfloat16"
   # chemical encoder configs
   use_chemical_encoder: true
-  chemical_encoder_source: "unimol"  # "unimol", "huggingface"
+  chemical_encoder_source: "huggingface"  # "unimol", "huggingface"
   huggingface_model_name: "ibm-research/MoLFormer-XL-both-10pct" # Provided name if using huggingface
   unimol_model_size: "84M" # Provided model size if using unimol, options: "84M", "164M", "310M", "570M", "1.1B"
-  chemical_encoder_num_unfrozen_layers: 3
+  chemical_encoder_num_unfrozen_layers: 0
   unfreeze_clm_embeddings: false
   clm_max_length: 128
-  clm_output_dim: 768
+  clm_output_dim: 768 # 1536
   clm_hidden_dropout_rate: 0.3
   clm_embedding_dropout_rate: 0.0
 
@@ -63,7 +76,8 @@ tensorboard_log: true
 test_settings:
   batch_size: 32
   num_workers: 4
-  test_splits: [ "underrepresented_test", "overrepresented_test", "zero_shot_test" ] # comment out if not using zero shot dataset
+#  test_splits: [ "underrepresented_test", "overrepresented_test", "zero_shot_test" ] # comment out if not using zero shot dataset
+  test_splits: [ "zero_shot_test" ] # comment out if not using zero shot dataset
 tqdm_progress_bar: true
 train_settings:
   alpha: 0.9

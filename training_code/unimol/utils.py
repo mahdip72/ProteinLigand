@@ -34,24 +34,40 @@ def _pad_batch_features(feats, max_N):
                 pf[k] = v
                 continue
             arr = _np.array(v)
-            # pad per dimensionality
-            if arr.ndim == 1:
-                pf[k] = _np.pad(arr, (0, max_N - arr.shape[0]), constant_values=0)
-            elif arr.ndim == 2:
-                d0, d1 = arr.shape
-                # square or bias
-                if d0 == d1 or d0 == n + 1:
-                    t0 = max_N + (1 if d0 == n + 1 else 0)
-                    t1 = max_N + (1 if d1 == n + 1 else 0)
-                    pf[k] = _np.pad(arr, ((0, t0 - d0), (0, t1 - d1)), constant_values=0)
+
+            # Handle known matrix types explicitly
+            if k in ['shortest_path', 'pair_type', 'edge_feat']:
+                # These are [N, N] or [N, N, C] matrices
+                if arr.ndim == 2:
+                    pf[k] = _np.pad(arr, ((0, max_N - arr.shape[0]), (0, max_N - arr.shape[1])), constant_values=0)
+                elif arr.ndim == 3:
+                    pf[k] = _np.pad(arr, ((0, max_N - arr.shape[0]), (0, max_N - arr.shape[1]), (0, 0)),
+                                   constant_values=0)
                 else:
-                    pf[k] = _np.pad(arr, ((0, max_N - d0), (0, 0)), constant_values=0)
-            elif arr.ndim == 3:
-                p0, p1 = max_N - arr.shape[0], max_N - arr.shape[1]
-                pf[k] = _np.pad(arr, ((0, p0), (0, p1), (0, 0)), constant_values=0)
+                    raise ValueError(f"Unexpected shape for {k}: {arr.shape}")
+
+            elif k == 'attn_bias':
+                # attn_bias is (N+1, N+1)
+                t = max_N + 1
+                pf[k] = _np.pad(arr, ((0, t - arr.shape[0]), (0, t - arr.shape[1])), constant_values=0)
+
+            elif k in ['atom_feat']:  # node feature matrix: (N, D)
+
+
+                if arr.shape[0] > max_N:
+                    raise ValueError(f"Feature '{k}' has shape {arr.shape[0]}, which exceeds max_N={max_N}")
+
+                pf[k] = _np.pad(arr, ((0, max_N - arr.shape[0]), (0, 0)), constant_values=0)
+
+            elif k in ['atom_mask', 'degree']:  # 1D node features
+                pf[k] = _np.pad(arr, (0, max_N - arr.shape[0]), constant_values=0)
+
             else:
-                pf[k] = arr
+                # Catch-all for anything else not handled
+                raise ValueError(f"Unrecognized key '{k}' with shape {arr.shape}")
+
         padded.append(pf)
+
     return padded
 
 

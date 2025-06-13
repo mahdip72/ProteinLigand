@@ -13,7 +13,6 @@ class LigandPredictionModel(nn.Module):
         Fine-tuning model for post-translational modification prediction.
 
         Args:
-        Args:
             configs: Contains model configurations like
                      - model.model_name (str)
                      - model.hidden_size (int)
@@ -171,9 +170,18 @@ class LigandPredictionModel(nn.Module):
                 else:
                     self.smiles_model = load_unimol_model(model_size, torch.device("cpu"))  # Might remove device logic later
                     print("Using default cache directory for UniMol2 model")
-                self.smiles_model.eval() # Not finetuning
+                self.smiles_model.eval()
+                # Freeze all parameters first
                 for param in self.smiles_model.parameters():
                     param.requires_grad = False
+
+                # Unfreeze last N layers
+                last_n = getattr(configs.model, "chemical_encoder_num_unfrozen_layers", 0)
+                if last_n > 0 and hasattr(self.smiles_model, "encoder"):
+                    encoder_layers = self.smiles_model.encoder.layers
+                    for layer in encoder_layers[-last_n:]:
+                        for param in layer.parameters():
+                            param.requires_grad = True
 
                 self.unimol_featurize = unimol_featurize
 
@@ -255,7 +263,6 @@ class LigandPredictionModel(nn.Module):
                 memory_key_padding_mask = (encoded["attention_mask"] == 0).to(input_ids.device)
             else:
                 # using UniMol2 featurization
-                print("smiles_batch:", smiles_batch)
                 featurized = self.unimol_featurize(smiles_batch, input_ids.device)
                 ligand_hidden, _ = self.smiles_model(featurized)
                 ligand_repr = self.proj_layernorm(self.projector(ligand_hidden))
