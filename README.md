@@ -28,9 +28,9 @@ We provide [datasets](https://mailmissouri-my.sharepoint.com/:f:/r/personal/mpng
 
 [Instructions for performing inference. Include example commands and required inputs/outputs.]
 
-- State 2 checkpoint: [link]()
+- State 2 checkpoint: [link](https://mailmissouri-my.sharepoint.com/:u:/g/personal/mpngf_umsystem_edu/Ef-_BQfoVchFjLdSPPOs1w4BSzLocvT-sfPXOm06cK-J8g?e=OHbGyL)
 
-- State 3 checkpoint: [link]()
+- State 3 checkpoint: [link](https://mailmissouri-my.sharepoint.com/:u:/g/personal/mpngf_umsystem_edu/ERN92UnmoYZIgyh0p-7SnZcBLex5-0FSzW6uWd9QS-jaUQ?e=9kIJOi)
 
 
 ## Results
