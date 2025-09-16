@@ -1,2 +1,0 @@
-from .unimol2 import UniMol2Model
-from .transformer_encoder_with_pair import TransformerEncoderWithPair

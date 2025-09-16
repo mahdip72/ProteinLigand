@@ -11,14 +11,14 @@ use_dataset_weighting: false # true
 use_dynamic_SMILES: true # Using dynamic SMILES representation based on dataset instead of static dictionary
 general_settings:
   train: false
-  on_hellbender: false
+  on_hellbender: true
   save_best_checkpoint: true
   save_intermediate_checkpoints: false
   use_checkpoint: true
   visualize: false
   test: true
   inference: false
-  checkpoint_path: "/mnt/pixstor/data/dc57y/2025-05-24__04-16-47__ZERO_SHOT_CLM/checkpoints/checkpoint_epoch_7.pth"
+  checkpoint_path: "/mnt/pixstor/data/dc57y/2025-08-12__13-19-32__MOLFORMER_1280_ESM2_ZERO_SHOT/checkpoints/stage_3.pth"
   # "/mnt/pixstor/data/dc57y/2025-08-06__20-06-06__BIOLIP_ALL_ET/checkpoints/checkpoint_epoch_19.pth"
   # "/mnt/pixstor/data/dc57y/2025-08-12__13-19-32__MOLFORMER_1280_ESM2_ZERO_SHOT/checkpoints/stage_3.pth"
 model:
