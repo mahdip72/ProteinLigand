@@ -1,9 +1,9 @@
 # 2 UNFROZEN LAYERS
 
 checkpoints_every: 12
-data_type: "2560_ZERO_SHOT_UNIMOL_2_UNFROZEN"
-use_fix_seed: true
-fix_seed: 5042364
+data_type: "ZERO_SHOT"
+use_fix_seed: false
+fix_seed: 0
 dataset_format: "zero_shot"
 max_pos_weight: 1
 use_positive_weighting_for_binding_sites: false
@@ -11,7 +11,7 @@ use_dataset_weighting: false # true
 use_dynamic_SMILES: true # Using dynamic SMILES representation based on dataset instead of static dictionary
 general_settings:
   train: false
-  on_hellbender: true
+  on_hellbender: false
   save_best_checkpoint: true
   save_intermediate_checkpoints: false
   use_checkpoint: true
@@ -19,8 +19,10 @@ general_settings:
   test: true
   inference: false
   checkpoint_path: "/mnt/pixstor/data/dc57y/2025-05-24__04-16-47__ZERO_SHOT_CLM/checkpoints/checkpoint_epoch_7.pth"
+  # "/mnt/pixstor/data/dc57y/2025-08-06__20-06-06__BIOLIP_ALL_ET/checkpoints/checkpoint_epoch_19.pth"
+  # "/mnt/pixstor/data/dc57y/2025-08-12__13-19-32__MOLFORMER_1280_ESM2_ZERO_SHOT/checkpoints/stage_3.pth"
 model:
-  cache_dir: "/home/dc57y/data/transformers_cache/"
+  cache_dir: "./hf_cache"
   use_compile: false
   backbone_dropout_rate: 0.3
   classifier_dropout_rate: 0.5
@@ -28,8 +30,8 @@ model:
   freeze_backbone: true
   num_unfrozen_layers: 0
   freeze_embeddings: true
-  hidden_size: 320
-  model_name: "facebook/esm2_t36_3B_UR50D"
+  hidden_size: 1280
+  model_name: "facebook/esm2_t33_650M_UR50D"
   structure_aware: false
   dtype: "bfloat16"
   # chemical encoder configs
@@ -76,8 +78,8 @@ tensorboard_log: true
 test_settings:
   batch_size: 32
   num_workers: 4
-#  test_splits: [ "underrepresented_test", "overrepresented_test", "zero_shot_test" ] # comment out if not using zero shot dataset
-  test_splits: [ "zero_shot_test" ] # comment out if not using zero shot dataset
+  test_splits: [ "underrepresented_test", "overrepresented_test", "zero_shot_test" ] # comment out if not using zero shot dataset
+#  test_splits: [ "zero_shot_test" ] # comment out if not using zero shot dataset
 tqdm_progress_bar: true
 train_settings:
   alpha: 0.9
