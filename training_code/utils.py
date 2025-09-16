@@ -192,21 +192,21 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, scheduler=None, scal
     # Restore optimizer state if provided
     if optimizer and 'optimizer_state_dict' in checkpoint:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        print("Optimizer state restored.")
+        # print("Optimizer state restored.")
 
     # Restore scheduler state if provided
     if scheduler and 'scheduler_state_dict' in checkpoint:
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        print("Scheduler state restored.")
+        # print("Scheduler state restored.")
 
     # Restore scaler state if provided
     if scaler and 'scaler_state_dict' in checkpoint:
         scaler.load_state_dict(checkpoint['scaler_state_dict'])
-        print("Scaler state restored.")
+        # print("Scaler state restored.")
 
     # Return the epoch to resume from
     epoch = checkpoint.get('epoch', -1)
-    print(f"Checkpoint loaded. Resuming from epoch {epoch + 1}.")
+    # print(f"Checkpoint loaded. Resuming from epoch {epoch + 1}.")
 
     return epoch
 
