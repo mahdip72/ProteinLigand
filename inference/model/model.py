@@ -4,8 +4,15 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 import torch
 from torch import nn
-from multi_ligand_dataset import idx2ligand
 import torch.nn.functional as F
+
+def idx2ligand(ligand_names):
+    """
+    Takes a list of ligand names and returns {index: ligand_name} dictionary.
+    """
+    mapping = {idx: ligand for idx, ligand in enumerate(sorted(set(ligand_names)))}
+    mapping[-1] = "UNKNOWN"
+    return mapping
 
 class LigandPredictionModel(nn.Module):
     def __init__(self, configs, num_labels=1):
@@ -25,7 +32,7 @@ class LigandPredictionModel(nn.Module):
         # 1. Read from configs
         base_model_name = configs.model.model_name
         hidden_size = configs.model.hidden_size
-        dtype = configs.model.dtype
+        dtype = configs.mixed_precision_dtype
         freeze_backbone = configs.model.freeze_backbone
         freeze_embeddings = configs.model.freeze_embeddings
         num_unfrozen_layers = configs.model.num_unfrozen_layers
