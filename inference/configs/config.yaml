@@ -1,0 +1,1344 @@
+# 2 UNFROZEN LAYERS
+
+checkpoints_every: 12
+data_type: "ZERO_SHOT"
+use_fix_seed: false
+fix_seed: 0
+dataset_format: "zero_shot"
+max_pos_weight: 1
+use_positive_weighting_for_binding_sites: false
+use_dataset_weighting: false # true
+use_dynamic_SMILES: true # Using dynamic SMILES representation based on dataset instead of static dictionary
+general_settings:
+  train: false
+  on_hellbender: true
+  save_best_checkpoint: true
+  save_intermediate_checkpoints: false
+  use_checkpoint: true
+  visualize: false
+  test: true
+  inference: false
+  checkpoint_path: "/mnt/pixstor/data/dc57y/2025-08-12__13-19-32__MOLFORMER_1280_ESM2_ZERO_SHOT/checkpoints/stage_3.pth"
+  # "/mnt/pixstor/data/dc57y/2025-08-06__20-06-06__BIOLIP_ALL_ET/checkpoints/checkpoint_epoch_19.pth"
+  # "/mnt/pixstor/data/dc57y/2025-08-12__13-19-32__MOLFORMER_1280_ESM2_ZERO_SHOT/checkpoints/stage_3.pth"
+model:
+  cache_dir: "./hf_cache"
+  use_compile: false
+  backbone_dropout_rate: 0.3
+  classifier_dropout_rate: 0.5
+  last_state_dropout_rate: 0.0
+  freeze_backbone: true
+  num_unfrozen_layers: 0
+  freeze_embeddings: true
+  hidden_size: 1280
+  model_name: "facebook/esm2_t33_650M_UR50D"
+  structure_aware: false
+  dtype: "bfloat16"
+  # chemical encoder configs
+  use_chemical_encoder: true
+  chemical_encoder_source: "huggingface"  # "unimol", "huggingface"
+  huggingface_model_name: "ibm-research/MoLFormer-XL-both-10pct" # Provided name if using huggingface
+  unimol_model_size: "84M" # Provided model size if using unimol, options: "84M", "164M", "310M", "570M", "1.1B"
+  chemical_encoder_num_unfrozen_layers: 0
+  unfreeze_clm_embeddings: false
+  clm_max_length: 128
+  clm_output_dim: 768 # 1536
+  clm_hidden_dropout_rate: 0.3
+  clm_embedding_dropout_rate: 0.0
+
+num_ligands: 166 #60
+optimizer:
+  beta_1: 0.9
+  beta_2: 0.98
+  decay:
+    gamma: 0.2
+    min_lr: 0
+    num_restarts: 1
+    warmup: 512
+  eps: 1e-7
+  grad_clip_norm: 1
+  lr: 5e-5
+  momentum: 0.9
+  name: adam
+  nesterov: true
+  use_8bit_adam: false
+  weight_decay: 1e-2
+  weight_decouple: true
+pos_weight_divisor: 30
+result_path: ./results/test/
+scheduler:
+  T_0: 24
+  T_max: 24
+  T_mult: 2
+  eta_min: 0
+  eta_min_first: 0.0005
+  eta_min_second: 1.0e-05
+  name: cosine_annealing
+tensorboard_log: true
+test_settings:
+  batch_size: 32
+  num_workers: 4
+#  test_splits: [ "underrepresented_test", "overrepresented_test", "zero_shot_test" ] # comment out if not using zero shot dataset
+  test_splits: [ "underrepresented_test", "overrepresented_test" ]
+tqdm_progress_bar: true
+train_settings:
+  alpha: 0.9
+  batch_size: 32
+  gamma: 1.5
+  grad_accumulation: 4
+  grad_clip_norm: 1
+  label_smoothing: 0.00
+  max_sequence_length: 1024 #768
+  mixed_precision: bf16
+  num_epochs: 8
+  num_workers: 4
+  shuffle: true
+transformer_head:
+  num_heads: 8
+  num_layers: 4
+  dim_feedforward: 2048
+  dropout: 0.3
+valid_settings:
+  batch_size: 32
+  num_workers: 4
+data_root: "./data"
+noise_std: 0.05
+mask_prob: 0.00
+mask_token_id: 32
+ligands:
+# TOP 10 BIOLIP
+#  - ADP
+#  - ATP
+#  - CA
+#  - CLA
+#  - FAD
+#  - HEM
+#  - MG
+#  - NAD
+#  - NAP
+#  - ZN
+# TOP 41 BIOLIP
+#  - ACO
+#  - ADP
+#  - AGS
+#  - AMP
+#  - ANP
+#  - ATP
+#  - BGC
+#  - BMA
+#  - CA
+#  - CLA
+#  - CLR
+#  - CO
+#  - COA
+#  - CU
+#  - FAD
+#  - FE
+#  - FE2
+#  - FES
+#  - FMN
+#  - GAL
+#  - GDP
+#  - GLC
+#  - GSH
+#  - GTP
+#  - HEC
+#  - HEM
+#  - MAN
+#  - MG
+#  - MN
+#  - NAD
+#  - NAP
+#  - NDP
+#  - PLP
+#  - PO4
+#  - SAH
+#  - SAM
+#  - SF4
+#  - SO4
+#  - UDP
+#  - Y01
+#  - ZN
+# PLINDER TOP 10 (both new and old)
+#- HSR
+#- HEM
+#- HSR-HSR
+#- MG
+#- ADP
+#- ATP
+#- NAD
+#- FAD
+#- NAP
+#- GDP
+  # PLINDER TOP 60
+#- ACT
+#- ADP
+#- AGC
+#- AGS
+#- AKG
+#- AMP
+#- ANP
+#- APC
+#- AR6
+#- ATP
+#- BFP
+#- BGC-BGC
+#- BLA
+#- C2E
+#- CA
+#- CLR
+#- CO
+#- COA
+#- CPG
+#- CRY
+#- CTP
+#- EDO
+#- F6P
+#- FAD
+#- FE
+#- FE2
+#- FMN
+#- FUC
+#- GCP
+#- GDP
+#- GNP
+#- GTP
+#- HEC
+#- HEM
+#- HSR
+#- HSR-HSR
+#- LTR
+#- MAN-MAN
+#- MES
+#- MG
+#- MN
+#- NAD
+#- NAI
+#- NAP
+#- NDG
+#- NDP
+#- NI
+#- OXY
+#- PLP
+#- PO4
+#- POP
+#- SAH
+#- SAM
+#- SF4
+#- SO4
+#- TPP
+#- TTP
+#- U25
+#- UPG
+#- ZN2
+  # ZERO SHOT
+  - 2BA
+  - 5GP
+  - 6OU
+  - 8CT
+  - A3P
+  - A86
+  - AC1
+  - ACO
+  - ACP
+  - ACT
+  - ADE
+  - ADN
+  - ADP
+  - AF3
+  - AGS
+  - AJP
+  - AKG
+  - ALA
+  - ALF
+  - AMP
+  - ANP
+  - APC
+  - APR
+  - AR6
+  - ARG
+  - ASP
+  - ATP
+  - AYE
+  - AZI
+  - B12
+  - BCL
+  - BCT
+  - BDP
+  - BEF
+  - BGC
+  - BLA
+  - BMA
+  - BPH
+  - BTI
+  - BTN
+  - BU3
+  - C2E
+  - C5P
+  - C8E
+  - CA
+  - CDP
+  - CHL
+  - CL
+  - CLA
+  - CLR
+  - CMP
+  - CO
+  - CO3
+  - COA
+  - COM
+  - CTP
+  - CU
+  - CU1
+  - CYC
+  - CYS
+  - DD6
+  - DMU
+  - DTP
+  - F3S
+  - FAD
+  - FBP
+  - FDA
+  - FE
+  - FE2
+  - FES
+  - FLC
+  - FMN
+  - FRU
+  - FUC
+  - G4P
+  - G6P
+  - GAL
+  - GDP
+  - GLA
+  - GLC
+  - GLN
+  - GLU
+  - GLY
+  - GNP
+  - GOL
+  - GSH
+  - GSP
+  - GTP
+  - HEB
+  - HEC
+  - HEM
+  - HIS
+  - I3P
+  - IHP
+  - IHT
+  - II0
+  - IMP
+  - K
+  - KC1
+  - KC2
+  - LBN
+  - LEU
+  - LMN
+  - LYS
+  - MAN
+  - MET
+  - MG
+  - MGD
+  - MN
+  - MTA
+  - NAD
+  - NAI
+  - NAP
+  - NDP
+  - NI
+  - O
+  - OXL
+  - OXY
+  - P5S
+  - PEB
+  - PEP
+  - PGW
+  - PHE
+  - PHO
+  - PID
+  - PIO
+  - PLP
+  - PLX
+  - PMP
+  - PNS
+  - PO4
+  - POP
+  - PQN
+  - PQQ
+  - PRO
+  - PYR
+  - RBF
+  - RET
+  - SAH
+  - SAM
+  - SER
+  - SF4
+  - SFG
+  - SIA
+  - SO3
+  - SO4
+  - STU
+  - TPP
+  - TRP
+  - TTP
+  - TYD
+  - TYR
+  - U10
+  - U5P
+  - UD1
+  - UDP
+  - UIX
+  - UMP
+  - UPG
+  - UQ8
+  - UTP
+  - WO4
+  - XYP
+  - XYS
+  - Y01
+  - ZN
+## NEW PLINDER TOP 77
+#- 0AT
+#- ACT
+#- ADP
+#- AGC
+#- AGC-AGC-AGC
+#- AGS
+#- AIC
+#- AKG
+#- AMP
+#- ANP
+#- APC
+#- AR6
+#- ATP
+#- AZN
+#- BFP
+#- BGC-BGC
+#- BGC-BGC-BGC-BGC
+#- BLA
+#- C25
+#- C2E
+#- CA
+#- CLR
+#- CMP
+#- CO
+#- COA
+#- CPG
+#- CRY
+#- CTN
+#- CTP
+#- EDO
+#- F6P
+#- FAD
+#- FE
+#- FE2
+#- FMN
+#- FUC
+#- GCP
+#- GDP
+#- GNP
+#- GTP
+#- HEC
+#- HEM
+#- HSR
+#- HSR-HSR
+#- HSZ-HSZ
+#- IAC
+#- IPE
+#- LTR
+#- MAN-MAN
+#- MES
+#- MG
+#- MN
+#- MVL
+#- NAD
+#- NAI
+#- NAP
+#- NCN
+#- NDG
+#- NDP
+#- NI
+#- NOS
+#- OXY
+#- PLP
+#- PO4
+#- POP
+#- RET
+#- SAH
+#- SAM
+#- SF4
+#- SLB
+#- SO4
+#- TMP
+#- TPP
+#- TTP
+#- U25
+#- UPG
+#- ZN2
+
+dataset_weight: # square rooted weights
+  # For BIOLIP
+#  ACO: 6.572248051043451
+#  ADP: 2.226542617996696
+#  AGS: 5.856745733616519
+#  AMP: 4.1186935263061715
+#  ANP: 3.6301468429933954
+#  ATP: 2.6192163174596823
+#  BGC: 3.7541517802459543
+#  BMA: 5.4337203144527235
+#  CA: 1.238154521240631
+#  CLA: 3.6932845648816426
+#  CLR: 5.148366907882714
+#  CO: 5.399652766613794
+#  COA: 4.244005538590049
+#  CU: 3.7541517802459543
+#  FAD: 2.377928816122437
+#  FE: 2.961215458638767
+#  FE2: 5.008058022955637
+#  FES: 4.1413446239256215
+#  FMN: 3.267270605297025
+#  GAL: 4.474534526346602
+#  GDP: 3.7095905362860004
+#  GLC: 3.205515621000118
+#  GSH: 4.8295962564173
+#  GTP: 5.576737397439475
+#  HEC: 4.203623977647685
+#  HEM: 2.349619130661733
+#  MAN: 3.234136864080644
+#  MG: 1.257306669431238
+#  MN: 2.431573056380809
+#  NAD: 2.6626426071659415
+#  NAP: 3.1776410428811177
+#  NDP: 4.3814987006956345
+#  PLP: 3.517670437241071
+#  PO4: 3.513014352556767
+#  SAH: 3.449711611726643
+#  SAM: 4.668946928436942
+#  SF4: 3.0273799678183995
+#  SO4: 4.625914241402162
+#  UDP: 5.503835734486249
+#  Y01: 6.633960654259577
+#  ZN: 1.0
+  # For zero shot, 1 for overrpresented and 4 for underrepresented
+  ACO: 1
+  ADP: 1
+  AGS: 1
+  AMP: 1
+  ANP: 1
+  ATP: 1
+  BGC: 1
+  BMA: 1
+  CA: 1
+  CHL: 1
+  CLA: 1
+  CLR: 1
+  CO: 1
+  COA: 1
+  CU: 1
+  FAD: 1
+  FE: 1
+  FE2: 1
+  FES: 1
+  FMN: 1
+  FUC: 1
+  GAL: 1
+  GDP: 1
+  GLC: 1
+  GOL: 1
+  GSH: 1
+  GTP: 1
+  HEC: 1
+  HEM: 1
+  MAN: 1
+  MG: 1
+  MN: 1
+  NAD: 1
+  NAP: 1
+  NDP: 1
+  PLP: 1
+  PO4: 1
+  SAH: 1
+  SAM: 1
+  SF4: 1
+  SIA: 1
+  SO4: 1
+  UDP: 1
+  Y01: 1
+  ZN: 1
+  2BA: 2
+  5GP: 2
+  6OU: 2
+  8CT: 2
+  A3P: 2
+  A86: 2
+  AC1: 2
+  ACP: 2
+  ACT: 2
+  ADE: 2
+  ADN: 2
+  AF3: 2
+  AJP: 2
+  AKG: 2
+  ALA: 2
+  ALF: 2
+  APC: 2
+  APR: 2
+  AR6: 2
+  ARG: 2
+  ASP: 2
+  AYE: 2
+  AZI: 2
+  B12: 2
+  BCL: 2
+  BCT: 2
+  BDP: 2
+  BEF: 2
+  BLA: 2
+  BPH: 2
+  BTI: 2
+  BTN: 2
+  BU3: 2
+  C2E: 2
+  C5P: 2
+  C8E: 2
+  CDP: 2
+  CL: 2
+  CMP: 2
+  CO3: 2
+  COM: 2
+  CTP: 2
+  CU1: 2
+  CYC: 2
+  CYS: 2
+  DD6: 2
+  DMU: 2
+  DTP: 2
+  F3S: 2
+  FBP: 2
+  FDA: 2
+  FLC: 2
+  FRU: 2
+  G4P: 2
+  G6P: 2
+  GLA: 2
+  GLN: 2
+  GLU: 2
+  GLY: 2
+  GNP: 2
+  GSP: 2
+  HEB: 2
+  HIS: 2
+  I3P: 2
+  IHP: 2
+  IHT: 2
+  II0: 2
+  IMP: 2
+  K: 2
+  KC1: 2
+  KC2: 2
+  LBN: 2
+  LEU: 2
+  LMN: 2
+  LYS: 2
+  MET: 2
+  MGD: 2
+  MTA: 2
+  NAI: 2
+  NI: 2
+  O: 2
+  OXL: 2
+  OXY: 2
+  P5S: 2
+  PEB: 2
+  PEP: 2
+  PGW: 2
+  PHE: 2
+  PHO: 2
+  PID: 2
+  PIO: 2
+  PLX: 2
+  PMP: 2
+  PNS: 2
+  POP: 2
+  PQN: 2
+  PQQ: 2
+  PRO: 2
+  PYR: 2
+  RBF: 2
+  RET: 2
+  SER: 2
+  SFG: 2
+  SO3: 2
+  STU: 2
+  TPP: 2
+  TRP: 2
+  TTP: 2
+  TYD: 2
+  TYR: 2
+  U10: 2
+  U5P: 2
+  UD1: 2
+  UIX: 2
+  UMP: 2
+  UPG: 2
+  UQ8: 2
+  UTP: 2
+  WO4: 2
+  XYP: 2
+  XYS: 2
+dataset_weight_plinder:
+  # For PLINDER
+  ADP: 1.2817
+  ATP: 1.4135
+  CA: 2.7592
+  CLA: 3.8928
+  FAD: 1.542
+  HEM: 1.0
+  MG: 1.0515
+  NAD: 1.4876
+  NAP: 1.6737
+  ZN: 2.1242
+
+pos_dataset_weight:
+  # For BIOLIP, log base 10 weights, then square rooted, min floor of 1
+#  ACO: 1.1528
+#  ADP: 1.301
+#  AGS: 1.2993
+#  AMP: 1.2734
+#  ANP: 1.289
+#  ATP: 1.3341
+#  BGC: 1.3302
+#  BMA: 1.4158
+#  CA: 1.3137
+#  CLA: 1.0
+#  CLR: 1.3926
+#  CO: 1.3582
+#  COA: 1.2061
+#  CU: 1.3616
+#  FAD: 1.1593
+#  FE: 1.3662
+#  FE2: 1.4067
+#  FES: 1.2777
+#  FMN: 1.1856
+#  GAL: 1.3361
+#  GDP: 1.2288
+#  GLC: 1.3209
+#  GSH: 1.2177
+#  GTP: 1.2306
+#  HEC: 1.0
+#  HEM: 1.135
+#  MAN: 1.3821
+#  MG: 1.4577
+#  MN: 1.3953
+#  NAD: 1.1576
+#  NAP: 1.1422
+#  NDP: 1.1414
+#  PLP: 1.2799
+#  PO4: 1.3538
+#  SAH: 1.2036
+#  SAM: 1.1922
+#  SF4: 1.255
+#  SO4: 1.3111
+#  UDP: 1.2644
+#  Y01: 1.356
+#  ZN: 1.3685
+
+pos_dataset_weight_plinder:
+    # For PLINDER, square root
+#  ACT: 11.1752
+#  ADP: 8.0179
+#  AGC: 9.5129
+#  AGS: 9.174
+#  AKG: 7.027
+#  AMP: 7.52
+#  ANP: 7.3564
+#  APC: 7.2869
+#  AR6: 6.9824
+#  ATP: 8.122
+#  BFP: 6.3111
+#  BGC-BGC: 7.8493
+#  BLA: 5.2989
+#  C2E: 6.8388
+#  CA: 11.8617
+#  CLR: 12.1829
+#  CO: 10.7624
+#  COA: 7.3778
+#  CPG: 6.6117
+#  CRY: 11.4191
+#  CTP: 7.6064
+#  EDO: 12.5127
+#  F6P: 7.1883
+#  FAD: 5.44
+#  FE: 10.6359
+#  FE2: 11.0251
+#  FMN: 5.4789
+#  FUC: 9.5341
+#  GCP: 5.4022
+#  GDP: 5.4515
+#  GNP: 4.1728
+#  GTP: 5.9701
+#  HEC: 4.8758
+#  HEM: 4.8489
+#  HSR: 17.7061
+#  HSR-HSR: 17.0534
+#  LTR: 7.1456
+#  MAN-MAN: 6.6835
+#  MES: 11.1286
+#  MG: 16.3986
+#  MN: 12.3362
+#  NAD: 5.3841
+#  NAI: 5.6232
+#  NAP: 4.7766
+#  NDG: 10.221
+#  NDP: 4.8506
+#  NI: 11.4093
+#  OXY: 12.9481
+#  PLP: 7.4518
+#  PO4: 9.5298
+#  POP: 7.3909
+#  SAH: 6.0196
+#  SAM: 6.357
+#  SF4: 10.8007
+#  SO4: 9.95
+#  TPP: 8.37
+#  TTP: 8.0519
+#  U25: 7.4204
+#  UPG: 6.0876
+#  ZN2: 11.2314
+  # natural log
+#  ACT: 4.8274
+#  ADP: 4.1634
+#  AGC: 4.5053
+#  AGS: 4.4328
+#  AKG: 3.8995
+#  AMP: 4.0351
+#  ANP: 3.9911
+#  APC: 3.9722
+#  AR6: 3.8868
+#  ATP: 4.1892
+#  BFP: 3.6846
+#  BGC-BGC: 4.1209
+#  BLA: 3.335
+#  C2E: 3.8452
+#  CA: 4.9466
+#  CLR: 5.0001
+#  CO: 4.7521
+#  COA: 3.997
+#  CPG: 3.7777
+#  CRY: 4.8706
+#  CTP: 4.058
+#  EDO: 5.0535
+#  F6P: 3.9449
+#  FAD: 3.3876
+#  FE: 4.7285
+#  FE2: 4.8004
+#  FMN: 3.4018
+#  FUC: 4.5097
+#  GCP: 3.3736
+#  GDP: 3.3918
+#  GNP: 2.8572
+#  GTP: 3.5735
+#  HEC: 3.1686
+#  HEM: 3.1575
+#  HSR: 5.7478
+#  HSR-HSR: 5.6727
+#  LTR: 3.933
+#  MAN-MAN: 3.7993
+#  MES: 4.819
+#  MG: 5.5944
+#  MN: 5.0251
+#  NAD: 3.3669
+#  NAI: 3.4538
+#  NAP: 3.1275
+#  NDG: 4.6489
+#  NDP: 3.1582
+#  NI: 4.8689
+#  OXY: 5.1219
+#  PLP: 4.0169
+#  PO4: 4.5089
+#  POP: 4.0005
+#  SAH: 3.59
+#  SAM: 3.6991
+#  SF4: 4.7592
+#  SO4: 4.5952
+#  TPP: 4.2493
+#  TTP: 4.1718
+#  U25: 4.0085
+#  UPG: 3.6125
+#  ZN2: 4.8374
+  # log base 10 weights
+#  ACT: 1.4479
+#  ADP: 1.3447
+#  AGC: 1.3988
+#  AGS: 1.3875
+#  AKG: 1.3014
+#  AMP: 1.3238
+#  ANP: 1.3166
+#  APC: 1.3134
+#  AR6: 1.2992
+#  ATP: 1.3488
+#  BFP: 1.265
+#  BGC-BGC: 1.3378
+#  BLA: 1.2035
+#  C2E: 1.2923
+#  CA: 1.4657
+#  CLR: 1.4736
+#  CO: 1.4366
+#  COA: 1.3175
+#  CPG: 1.2809
+#  CRY: 1.4544
+#  CTP: 1.3275
+#  EDO: 1.4815
+#  F6P: 1.3089
+#  FAD: 1.2129
+#  FE: 1.433
+#  FE2: 1.4439
+#  FMN: 1.2155
+#  FUC: 1.3995
+#  GCP: 1.2104
+#  GDP: 1.2137
+#  GNP: 1.1139
+#  GTP: 1.2458
+#  HEC: 1.1731
+#  HEM: 1.171
+#  HSR: 1.58
+#  HSR-HSR: 1.5696
+#  LTR: 1.3069
+#  MAN-MAN: 1.2845
+#  MES: 1.4467
+#  MG: 1.5587
+#  MN: 1.4773
+#  NAD: 1.2092
+#  NAI: 1.2247
+#  NAP: 1.1654
+#  NDG: 1.4209
+#  NDP: 1.1711
+#  NI: 1.4541
+#  OXY: 1.4914
+#  PLP: 1.3208
+#  PO4: 1.3993
+#  POP: 1.3181
+#  SAH: 1.2487
+#  SAM: 1.2675
+#  SF4: 1.4377
+#  SO4: 1.4127
+#  TPP: 1.3585
+#  TTP: 1.346
+#  U25: 1.3194
+#  UPG: 1.2526
+#  ZN2: 1.4494
+#  # original weights
+  ACT: 124.884
+  ADP: 64.287
+  AGC: 90.496
+  AGS: 84.163
+  AKG: 49.379
+  AMP: 56.55
+  ANP: 54.117
+  APC: 53.099
+  AR6: 48.754
+  ATP: 65.967
+  BFP: 39.83
+  BGC-BGC: 61.612
+  BLA: 28.078
+  C2E: 46.769
+  CA: 140.7
+  CLR: 148.424
+  CO: 115.83
+  COA: 54.432
+  CPG: 43.715
+  CRY: 130.395
+  CTP: 57.858
+  EDO: 156.568
+  F6P: 51.672
+  FAD: 29.594
+  FE: 113.123
+  FE2: 121.553
+  FMN: 30.018
+  FUC: 90.899
+  GCP: 29.184
+  GDP: 29.719
+  GNP: 17.412
+  GTP: 35.642
+  HEC: 23.773
+  HEM: 23.512
+  HSR: 313.507
+  HSR-HSR: 290.819
+  LTR: 51.06
+  MAN-MAN: 44.669
+  MES: 123.846
+  MG: 268.913
+  MN: 152.183
+  NAD: 28.989
+  NAI: 31.62
+  NAP: 22.816
+  NDG: 104.469
+  NDP: 23.528
+  NI: 130.172
+  OXY: 167.652
+  PLP: 55.53
+  PO4: 90.818
+  POP: 54.626
+  SAH: 36.235
+  SAM: 40.411
+  SF4: 116.655
+  SO4: 99.003
+  TPP: 70.057
+  TTP: 64.833
+  U25: 55.063
+  UPG: 37.059
+  ZN2: 126.144
+
+
+
+ligand_to_smiles:
+  # For Biolip
+  2BA: 'c1nc(c2c(n1)n(cn2)C3C(C4C(O3)COP(=O)(OC5C(COP(=O)(O4)O)OC(C5O)n6cnc7c6ncnc7N)O)O)N'
+  5GP: 'NC1=Nc2n(cnc2C(=O)N1)[C@@H]3O[C@H](CO[P](O)(O)=O)[C@@H](O)[C@H]3O'
+  6OU: 'CCCCCCCCCCCCCCCC(=O)OC[C@H](CO[P](O)(=O)OCCN)OC(=O)CCCCCCC\C=C/CCCCCCCC'
+  8CT: 'CC1=C(C(CCC1)(C)C)C=CC(=CC=CC(=CC=CC=C(C)C=CC=C(C)C=CC2C(=CCCC2(C)C)C)C)C'
+  A3P: 'Nc1ncnc2n(cnc12)[CH]3O[CH](CO[P](O)(O)=O)[CH](O[P](O)(O)=O)[CH]3O'
+  A86: 'CC(=CC=CC=C(C)C=CC=C(C)C(=O)CC12C(CC(CC1(O2)C)O)(C)C)C=CC=C(C)C=C=C3C(CC(CC3(C)O)OC(=O)C)(C)C'
+  AC1: 'CC1C(C(C(C(O1)O)O)O)NC2C=C(C(C(C2O)O)O)CO'
+  ACO: 'CC(=O)SCCNC(=O)CCNC(=O)[C@@H](C(C)(C)CO[P@](=O)(O)O[P@@](=O)(O)OC[C@@H]1[C@H]([C@H]([C@@H](O1)n2cnc3c2ncnc3N)O)OP(=O)(O)O)O'
+  ACP: 'Nc1ncnc2n(cnc12)[CH]3O[CH](CO[P](O)(=O)O[P](O)(=O)C[P](O)(O)=O)[CH](O)[CH]3O'
+  ACT: '[O-]C(=O)C'
+  ADE: 'Nc1ncnc2[nH]cnc12'
+  ADN: 'Nc1ncnc2n(cnc12)[CH]3O[CH](CO)[CH](O)[CH]3O'
+  ADP: 'c1nc(c2c(n1)n(cn2)[C@H]3[C@@H]([C@@H]([C@H](O3)CO[P@](=O)(O)OP(=O)(O)O)O)O)N'
+  AF3: 'F[Al](F)F'
+  AGS: 'c1nc(c2c(n1)n(cn2)C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=S)(O)O)O)O)N'
+  AJP: 'CC1C2C(OC31CCC(C)CO3)C(O)C1C3CCC4CC(OC5OC(CO)C(OC6OC(CO)C(O)C(OC7OCC(O)C(O)C7O)C6OC6OC(CO)C(O)C(OC7OC(CO)C(O)C(O)C7O)C6O)C(O)C5O)C(O)CC4(C)C3CCC21C'
+  AKG: 'O=C(O)C(=O)CCC(=O)O'
+  ALA: 'CC(C(=O)O)N'
+  ALF: 'F[Al-](F)(F)F'
+  AMP: 'Nc1ncnc2n(cnc12)[CH]3O[CH](CO[P](O)(O)=O)[CH](O)[CH]3O'
+  ANP: 'c1nc(c2c(n1)n(cn2)C3C(C(C(O3)COP(=O)(O)OP(=O)(NP(=O)(O)O)O)O)O)N'
+  APC: 'c1nc(c2c(n1)n(cn2)[C@H]3[C@@H]([C@@H]([C@H](O3)CO[P@@](=O)(C[P@](=O)(O)OP(=O)(O)O)O)O)O)N'
+  APR: 'O=P(O)(OCC3OC(n1c2ncnc(N)c2nc1)C(O)C3O)OP(=O)(O)OCC4OC(O)C(O)C4O'
+  AR6: 'c1nc(c2c(n1)n(cn2)C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OCC4C(C(C(O4)O)O)O)O)O)N'
+  ARG: 'C(CC(C(=O)O)N)CNC(=[NH2+])N'
+  ASP: 'C(C(C(=O)O)N)C(=O)O'
+  ATP: 'c1nc(c2c(n1)n(cn2)C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O)N'
+  AYE: 'NCC=C'
+  AZI: '[N-]=[N+]=[N-]'
+  B12: 'Cc1cc2c(cc1C)n(cn2)C3C(C(C(O3)CO)OP(=O)(O)OC(C)CNC(=O)CCC4(C(C5C6(C(C(C7=[N]6[Co+2]89[N]5=C4C(=C1[NH]8C(=CC2=[N]9C(=C7C)C(C2CCC(=O)N)(C)CC(=O)N)C(C1CCC(=O)N)(C)C)C)CCC(=O)N)(C)CC(=O)N)C)CC(=O)N)C)O'
+  BCL: 'CC[C@@H]1[C@H](C2=CC3=C(C(=C4[N-]3[Mg+2]56[N]2=C1C=C7[N-]5C8=C([C@H](C(=O)C8=C7C)C(=O)OC)C9=[N]6C(=C4)[C@H]([C@@H]9CCC(=O)OC/C=C(\C)/CCC[C@H](C)CCC[C@H](C)CCCC(C)C)C)C)C(=O)C)C'
+  BCT: 'C(=O)(O)[O-]'
+  BDP: '[C@@H]1([C@@H]([C@H](O[C@H]([C@@H]1O)O)C(=O)O)O)O'
+  BEF: '[Be-](F)(F)F'
+  BGC: 'C(C1C(C(C(C(O1)O)O)O)O)O'
+  BLA: 'Cc1c(c([nH]c1\C=C/2\C(=C(C(=O)N2)C=C)C)\C=C/3\C(=C(C(=N3)\C=C/4\C(=C(C(=O)N4)C)C=C)C)CCC(=O)O)CCC(=O)O'
+  BMA: 'OC[C@H]1O[C@@H](O)[C@@H](O)[C@@H](O)[C@@H]1O'
+  BPH: 'O=C(OC\C=C(/C)CCCC(C)CCCC(C)CCCC(C)C)CCC6c4nc(cc1c(c(C(=O)C)c(n1)cc5nc(cc3c(c2C(=O)C(c4c2n3)C(=O)OC)C)C(CC)C5C)C)C6C'
+  BTI: 'O=CCCCC[CH]1SC[CH]2NC(=O)N[CH]12'
+  BTN: 'OC(=O)CCCC[CH]1SC[CH]2NC(=O)N[CH]12'
+  BU3: 'C[C@H]([C@@H](C)O)O'
+  C2E: 'O=C7NC(=Nc1c7ncn1C6OC5COP(=O)(OC4C(OC(n2c3N=C(N)NC(=O)c3nc2)C4O)COP(=O)(O)OC5C6O)O)N'
+  C5P: 'NC1=NC(=O)N(C=C1)[CH]2O[CH](CO[P](O)(O)=O)[CH](O)[CH]2O'
+  C8E: 'O(CCCCCCCC)CCOCCOCCOCCO'
+  CA: '[Ca++]'
+  CDP: 'C1=CN(C(=O)N=C1N)C2C(C(C(O2)COP(=O)(O)OP(=O)(O)O)O)O'
+  CHL: 'CCC1=C(c2cc3c(c(c4n3[Mg]56[n+]2c1cc7n5c8c(c9[n+]6c(c4)C(C9CCC(=O)OCC=C(C)CCCC(C)CCCC(C)CCCC(C)C)C)C(C(=O)c8c7C)C(=O)OC)C)C=C)C=O'
+  CL: '[Cl-]'
+  CLA: 'CCC1=C(C2=Cc3c(c(c4n3[Mg]56[N]2=C1C=C7N5C8=C(C(C(=O)C8=C7C)C(=O)OC)C9=[N]6C(=C4)C(C9CCC(=O)OCC=C(C)CCCC(C)CCCC(C)CCCC(C)C)C)C)C=C)C'
+  CLR: 'CC(C)CCCC(C)C1CCC2C1(CCC3C2CC=C4C3(CCC(C4)O)C)C'
+  CMP: 'c1nc(c2c(n1)n(cn2)C3C(C4C(O3)COP(=O)(O4)O)O)N'
+  CO: '[Co+2]'
+  CO3: 'C(=O)([O-])[O-]'
+  COA: 'CC(C)(COP(=O)(O)OP(=O)(O)OCC1C(C(C(O1)n2cnc3c2ncnc3N)O)OP(=O)(O)O)C(C(=O)NCCC(=O)NCCS)O'
+  COM: 'O[S](=O)(=O)CCS'
+  CTP: 'C1=CN(C(=O)N=C1N)C2C(C(C(O2)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O'
+  CU: '[Cu+2]'
+  CU1: '[Cu+]'
+  CYC: 'CC[C@@H]1[C@@H](C)C(=O)N\C1=C/c2[nH]c(\C=C3/N=C(\C=C4/NC(=O)C(=C4C)CC)C(=C3CCC(O)=O)C)c(CCC(O)=O)c2C'
+  CYS: 'N[CH](CS)C(O)=O'
+  DD6: 'CC([C@H]=C[C@H]=C(C#CC=1C(C)(C)CC(CC=1C)O)C)=[C@H]C=[C@H]\C=C(/C)\C=C\C=C(/C)\C=C/C32OC2(CC(CC3(C)C)O)C'
+  DMU: 'CCCCCCCCCCO[CH]1O[CH](CO)[CH](O[CH]2O[CH](CO)[CH](O)[CH](O)[CH]2O)[CH](O)[CH]1O'
+  DTP: 'c1nc(c2c(n1)n(cn2)[C@H]3C[C@@H]([C@H](O3)CO[P@](=O)(O)O[P@@](=O)(O)OP(=O)(O)O)O)N'
+  F3S: 'S1[Fe]S[Fe]2S[Fe]1S2'
+  FAD: 'Cc1cc2N=C3C(=O)NC(=O)N=C3N(C[C@H](O)[C@H](O)[C@H](O)CO[P@](O)(=O)O[P@@](O)(=O)OC[C@H]4O[C@H]([C@H](O)[C@@H]4O)n5cnc6c(N)ncnc56)c2cc1C'
+  FBP: 'O[C@H]1[C@H](O)[C@@](O)(CO[P](O)(O)=O)O[C@@H]1CO[P](O)(O)=O'
+  FDA: 'Cc1cc2c(cc1C)N(C3=C(N2)C(=O)NC(=O)N3)CC(C(C(COP(=O)(O)OP(=O)(O)OCC4C(C(C(O4)n5cnc6c5ncnc6N)O)O)O)O)O'
+  FE: '[Fe+3]'
+  FE2: '[Fe+2]'
+  FES: '[Fe]1S[Fe]S1'
+  FLC: 'OC(CC([O-])=O)(CC([O-])=O)C([O-])=O'
+  FMN: 'Cc1cc2c(cc1C)N(C3=NC(=O)NC(=O)C3=N2)CC(C(C(COP(=O)(O)O)O)O)O'
+  FRU: 'OC1C(O)C(OC1(O)CO)CO'
+  FUC: 'C[C@@H]1O[C@@H](O)[C@@H](O)[C@H](O)[C@@H]1O'
+  G4P: 'c1nc2c(n1C3C(C(C(O3)COP(=O)(O)OP(=O)(O)O)OP(=O)(O)OP(=O)(O)O)O)N=C(NC2=O)N'
+  G6P: 'C([C@@H]1[C@H]([C@@H]([C@H]([C@H](O1)O)O)O)O)OP(=O)(O)O'
+  GAL: 'OC[C@H]1O[C@@H](O)[C@H](O)[C@@H](O)[C@H]1O'
+  GDP: 'c1nc2c(n1C3C(C(C(O3)COP(=O)(O)OP(=O)(O)O)O)O)N=C(NC2=O)N'
+  GLA: 'OC[C@H]1O[C@H](O)[C@H](O)[C@@H](O)[C@H]1O'
+  GLC: 'C(C1C(C(C(C(O1)O)O)O)O)O'
+  GLN: 'C(CC(=O)N)C(C(=O)O)N'
+  GLU: 'O=C(O)C(N)CCC(=O)O'
+  GLY: 'C(C(=O)O)N'
+  GNP: 'O=P(O)(O)NP(=O)(O)OP(=O)(O)OCC3OC(n2cnc1c2N=C(N)NC1=O)C(O)C3O'
+  GOL: 'C(C(CO)O)O'
+  GSH: 'O=C(NCC(=O)O)C(NC(=O)CCC(C(=O)O)N)CS'
+  GSP: 'c1nc2c(n1C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=S)(O)O)O)O)N=C(NC2=O)N'
+  GTP: 'c1nc2c(n1[C@H]3[C@@H]([C@@H]([C@H](O3)CO[P@](=O)(O)O[P@](=O)(O)OP(=O)(O)O)O)O)N=C(NC2=O)N'
+  HEB: 'CCC1=C(C)C2=NC1=Cc3n4[Fe][N]5C(=C2)C(=C(CCC(O)=O)C5=CC6=NC(=Cc4c(C=C)c3C)C(=C6CCC(O)=O)C)C'
+  HEC: 'O=C(O)CCC1=C(C2=CC6=C(C(=C/C)\C5=CC4=C(C(\C3=Cc7c(c(c8C=C1N2[Fe](N34)(N56)n78)CCC(=O)O)C)=C/C)C)C)C'
+  HEM: 'Cc1c2n3c(c1CCC(=O)O)C=C4C(=C(C5=[N]4[Fe]36[N]7=C(C=C8N6C(=C5)C(=C8C)C=C)C(=C(C7=C2)C)C=C)C)CCC(=O)O'
+  HIS: 'c1c([nH+]c[nH]1)CC(C(=O)O)N'
+  I3P: 'O=P(OC1C(O)C(O)C(OP(=O)(O)O)C(O)C1OP(=O)(O)O)(O)O'
+  IHP: 'O[P](O)(=O)O[CH]1[CH](O[P](O)(O)=O)[CH](O[P](O)(O)=O)[CH](O[P](O)(O)=O)[CH](O[P](O)(O)=O)[CH]1O[P](O)(O)=O'
+  IHT: 'CC(=CC=CC=C(C)C=CC=C(C)C#CC1=C(C)C[CH](O)CC1(C)C)C=CC=C(C)C=CC2=C(C)CCCC2(C)C'
+  II0: 'CC1=C(C(C[C@@H](C1)O)(C)C)C#C/C(=C/C=C/C(=C/C=C/C=C(/C=C/C=C(/C#CC2=C(C[C@H](CC2(C)C)O)C)\C)\C)/C)/C'
+  IMP: 'c1nc2c(n1[C@H]3[C@@H]([C@@H]([C@H](O3)COP(=O)(O)O)O)O)N=CNC2=O'
+  K: '[K+]'
+  KC1: 'N16C=3C(=C(C1=CC=7C(=C(C(=Cc2n(c5c(c2C)C(C(C(=O)OC)C5=C4C(=C(C(C=3)=N4)C)\C=C\C(=O)O)=O)[Mg]6)N=7)CC)C)\C=C)C'
+  KC2: 'Cc1c2cc3nc(c4c5c(c(c6n5[Mg]n2c(c1C=C)cc7nc(c6)C(=C7C)C=C)C)C(=O)C4C(=O)OC)C(=C3C)C=CC(=O)O'
+  LBN: 'CCCCCCCCCCCCCCCC(=O)OCC(COP(=O)([O-])OCC[N+](C)(C)C)OC(=O)CCCCCCCC=CCCCCCCCC'
+  LEU: 'CC(C)C[C@@H](C(=O)O)N'
+  LMN: 'O(CC(CCCCCCCCCC)(CCCCCCCCCC)COC2OC(CO)C(OC1OC(CO)C(O)C(O)C1O)C(O)C2O)C4OC(C(OC3OC(CO)C(O)C(O)C3O)C(O)C4O)CO'
+  LYS: 'N[CH](CCCC[NH3+])C(O)=O'
+  MAN: 'C(C1C(C(C(C(O1)O)O)O)O)O'
+  MET: 'CSCC[CH](N)C(O)=O'
+  MG: '[Mg+2]'
+  MGD: 'NC1=NC2=C(N[CH]3[CH](N2)O[CH](CO[P](O)(=O)O[P](O)(=O)OC[CH]4O[CH]([CH](O)[CH]4O)n5cnc6C(=O)NC(=Nc56)N)C(=C3S)S)C(=O)N1'
+  MN: '[Mn+2]'
+  MTA: 'CSCC1C(C(C(O1)n2cnc3c2ncnc3N)O)O'
+  NAD: 'NC(=O)c1ccc[n+](c1)[C@@H]2O[C@H](CO[P]([O-])(=O)O[P@](O)(=O)OC[C@H]3O[C@H]([C@H](O)[C@@H]3O)n4cnc5c(N)ncnc45)[C@@H](O)[C@H]2O'
+  NAI: 'c1nc(c2c(n1)n(cn2)C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OCC4C(C(C(O4)N5C=CCC(=C5)C(=O)N)O)O)O)O)N'
+  NAP: 'c1cc(c[n+](c1)C2C(C(C(O2)COP(=O)([O-])OP(=O)(O)OCC3C(C(C(O3)n4cnc5c4ncnc5N)OP(=O)(O)O)O)O)O)C(=O)N'
+  NDP: 'c1nc(c2c(n1)n(cn2)[C@H]3[C@@H]([C@@H]([C@H](O3)CO[P@](=O)(O)O[P@@](=O)(O)OC[C@@H]4[C@H]([C@H]([C@@H](O4)N5C=CCC(=C5)C(=O)N)O)O)O)OP(=O)(O)O)N'
+  NI: '[Ni++]'
+  O: 'O'
+  OXL: '[O-]C(=O)C([O-])=O'
+  OXY: 'O=O'
+  P5S: 'CCCCCCCCCCCCCCCCCC(=O)OC[CH](CO[P](O)(=O)OC[CH](N)C(O)=O)OC(=O)CCCCCCCCCCCCCCCCC'
+  PEB: 'CCC1C(C(=O)NC1=CC2=NC(=Cc3c(c(c([nH]3)CC4C(=C(C(=O)N4)C=C)C)C)CCC(=O)O)C(=C2C)CCC(=O)O)C'
+  PEP: 'C=C(C(=O)O)OP(=O)(O)O'
+  PGW: 'CCCCCCCCCCCCCCCC(=O)OC[CH](CO[P](O)(=O)OC[CH](O)CO)OC(=O)CCCCCCCC=CCCCCCCCC'
+  PHE: 'N[CH](Cc1ccccc1)C(O)=O'
+  PHO: 'CCC1=C(c2cc3c(c(c([nH]3)cc4nc(c5c6c(c(c([nH]6)cc1n2)C)C(=O)C5C(=O)OC)C(C4C)CCC(=O)OCC=C(C)CCCC(C)CCCC(C)CCCC(C)C)C)C=C)C'
+  PID: 'CC(=O)O[CH]1CC(C)(C)[C](=[C]=[CH]C(C)=CC=CC=CC=C(C)C=C2OC(=O)C(=C2)C=C[C]34O[C]3(C)C[CH](O)CC4(C)C)[C](C)(O)C1'
+  PIO: 'CCCCCCCC(=O)OC[C@H](CO[P](O)(=O)O[C@@H]1[C@H](O)[C@H](O)[C@@H](O[P](O)(O)=O)[C@H](O[P](O)(O)=O)[C@H]1O)OC(=O)CCCCCCC'
+  PLP: 'Cc1ncc(CO[P](O)(O)=O)c(C=O)c1O'
+  PLX: 'CCCCCCCCCCCCCCCCC[C@@H](O)O[C@H](CO[C@H](O)CCCCCCCCCCCCCCC)CO[P@@](O)(=O)OCC[N+](C)(C)C'
+  PMP: 'O=P(O)(O)OCc1cnc(c(O)c1CN)C'
+  PNS: 'CC(C)(CO[P](O)(O)=O)[C@@H](O)C(=O)NCCC(=O)NCCS'
+  PO4: '[O-][P]([O-])([O-])=O'
+  POP: 'O[P@@](=O)([O-])O[P@@](=O)(O)[O-]'
+  PQN: 'CC1=C(C(=O)c2ccccc2C1=O)CC=C(C)CCCC(C)CCCC(C)CCCC(C)C'
+  PQQ: 'c1c2c([nH]c1C(=O)O)-c3c(cc(nc3C(=O)C2=O)C(=O)O)C(=O)O'
+  PRO: 'C1C[C@H](NC1)C(=O)O'
+  PYR: 'CC(=O)C(O)=O'
+  RBF: 'Cc1cc2N=C3C(=O)NC(=O)N=C3N(C[CH](O)[CH](O)[CH](O)CO)c2cc1C'
+  RET: 'CC(=C\C=O)/C=C/C=C(C)/C=C/C1=C(C)CCCC1(C)C'
+  SAH: 'N[CH](CCSC[CH]1O[CH]([CH](O)[CH]1O)n2cnc3c(N)ncnc23)C(O)=O'
+  SAM: 'C[S@@+](CC[C@H](N)C([O-])=O)C[C@H]1O[C@H]([C@H](O)[C@@H]1O)n2cnc3c(N)ncnc23'
+  SER: 'N[CH](CO)C(O)=O'
+  SF4: '[S]12[Fe]3[S]4[Fe]1[S]5[Fe]2[S]3[Fe]45'
+  SFG: 'c1nc(c2c(n1)n(cn2)[C@H]3[C@@H]([C@@H]([C@H](O3)C[C@H](CC[C@@H](C(=O)O)N)N)O)O)N'
+  SIA: 'CC(=O)N[CH]1[CH](O)C[C](O)(O[CH]1[CH](O)[CH](O)CO)C(O)=O'
+  SO3: '[O-][S]([O-])=O'
+  SO4: '[O-]S(=O)(=O)[O-]'
+  STU: 'CC12C(C(CC(O1)n3c4ccccc4c5c3c6n2c7ccccc7c6c8c5C(=O)NC8)NC)OC'
+  TPP: 'Cc1ncc(C[n+]2csc(CCO[P@@](O)(=O)O[P](O)(O)=O)c2C)c(N)n1'
+  TRP: 'c1ccc2c(c1)c(c[nH]2)C[C@@H](C(=O)O)N'
+  TTP: 'CC1=CN(C(=O)NC1=O)[C@H]2C[C@@H]([C@H](O2)CO[P@](=O)(O)O[P@@](=O)(O)OP(=O)(O)O)O'
+  TYD: 'CC1=CN(C(=O)NC1=O)[C@H]2C[C@@H]([C@H](O2)CO[P@](=O)(O)OP(=O)(O)O)O'
+  TYR: 'O=C(O)C(N)Cc1ccc(O)cc1'
+  U10: 'CC1=C(C(=O)C(=C(C1=O)OC)OC)CC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)C'
+  U5P: 'O=C1NC(=O)N(C=C1)C2OC(C(O)C2O)COP(=O)(O)O'
+  UD1: 'CC(=O)NC1C(C(C(OC1OP(=O)(O)OP(=O)(O)OCC2C(C(C(O2)N3C=CC(=O)NC3=O)O)O)CO)O)O'
+  UDP: 'C1=CN(C(=O)NC1=O)[C@H]2[C@@H]([C@@H]([C@H](O2)CO[P@@](=O)(O)OP(=O)(O)O)O)O'
+  UIX: 'CC(=CC=CC=C(C)C=CC=C(C)C=C=C1C(CC(CC1(C)O)OC(=O)C)(C)C)C=CC=C(C)C=CC23C(CC(CC2(O3)C)O)(C)C'
+  UMP: 'O=P(O)(O)OCC2OC(N1C(=O)NC(=O)C=C1)CC2O'
+  UPG: 'OC[C@H]1O[C@H](O[P](O)(=O)O[P](O)(=O)OC[C@H]2O[C@H]([C@H](O)[C@@H]2O)N3C=CC(=O)NC3=O)[C@H](O)[C@@H](O)[C@@H]1O'
+  UQ8: 'CC1=C(C(=O)C(=C(C1=O)OC)OC)CC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)CCC=C(C)C'
+  UTP: 'C1=CN(C(=O)NC1=O)[C@H]2[C@@H]([C@@H]([C@H](O2)CO[P@@](=O)(O)O[P@@](=O)(O)OP(=O)(O)O)O)O'
+  WO4: '[O-][W](=O)(=O)[O-]'
+  XYP: 'C1C(C(C(C(O1)O)O)O)O'
+  XYS: 'C1C(C(C(C(O1)O)O)O)O'
+  Y01: 'CC(C)CCC[C@@H](C)[C@H]1CC[C@H]2[C@@H]3CC=C4C[C@H](CC[C@]4(C)[C@H]3CC[C@]12C)OC(=O)CCC(O)=O'
+  ZN: '[Zn++]'
+    # For PLINDER
+#  017: 'CC(C)CN(C[C@@H](O)[C@H](Cc1ccccc1)NC(=O)O[C@H]1CO[C@H]2OCC[C@H]21)S(=O)(=O)c1ccc(N)cc1'
+#  1N7: 'C[C@H](CCC(=O)NCCC[N+](C)(C)CC(O)CS(=O)(=O)O)[C@H]1CC[C@H]2[C@@H]3[C@H](O)C[C@@H]4C[C@H](O)CC[C@]4(C)[C@H]3C[C@H](O)[C@]12C'
+#  2AN: 'O=S(=O)(O)c1cccc2cccc(Nc3ccccc3)c12'
+#  2CV: 'CCCCCCCCCC(=O)N(CCO)C[C@@H](O)[C@@H](O)[C@@H](O)[C@@H](O)CO'
+#  5AD: 'C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O'
+#  A2G: 'CC(=O)N[C@@H]1[C@@H](O)[C@@H](O)[C@@H](CO)O[C@@H]1O'
+#  A3P: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)O)[C@@H](OP(=O)(O)O)[C@H]1O'
+#  ABU: 'NCCCC(=O)O'
+#  ACO: 'CC(=O)SCCNC(=O)CCNC(=O)[C@H](O)C(C)(C)CO[P@](=O)(O)O[P@@](=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1OP(=O)(O)O'
+#  ACP: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@@](=O)(O)O[P@@](=O)(O)CP(=O)(O)O)[C@@H](O)[C@H]1O'
+#  ACT: 'CC(=O)[O-]'
+#  ADE: 'Nc1ncnc2[nH]cnc12'
+#  ADN: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO)[C@@H](O)[C@H]1O'
+#  ADP: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O'
+#  AGC: 'OC[C@H]1O[C@H](O)[C@H](O)[C@@H](O)[C@@H]1O'
+#  AGC-AGC: 'OC[C@H]1O[C@H](O[C@H]2[C@H](O)[C@@H](O)[C@@H](O)O[C@@H]2CO)[C@H](O)[C@@H](O)[C@@H]1O'
+#  AGC-FRU: 'OC[C@H]1O[C@@](CO)(O[C@H]2O[C@H](CO)[C@@H](O)[C@H](O)[C@H]2O)[C@@H](O)[C@@H]1O'
+#  AGS: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(O)(O)=S)[C@@H](O)[C@H]1O'
+#  AJP: 'C[C@@H]1CC[C@@]2(OC1)O[C@H]1[C@@H](O)[C@H]3[C@@H]4CC[C@H]5C[C@@H](O[C@@H]6O[C@H](CO)[C@H](O[C@@H]7O[C@H](CO)[C@@H](O)[C@H](O[C@@H]8OC[C@@H](O)[C@H](O)[C@H]8O)[C@H]7O[C@@H]7O[C@H](CO)[C@H](O)[C@H](O[C@@H]8O[C@H](CO)[C@@H](O)[C@H](O)[C@H]8O)[C@H]7O)[C@H](O)[C@H]6O)[C@H](O)C[C@]5(C)[C@H]4CC[C@]3(C)[C@H]1[C@@H]2C'
+#  AKG: 'O=C(O)CCC(=O)C(=O)O'
+#  ALA: 'C[C@H](N)C(=O)O'
+#  ALA-GLY-SEP-ILE-PRO-GLY-ARG-ARG-SEG: 'CC[C@H](C)[C@H](NC(=O)[C@H](COP(=O)(O)O)NC(=O)CNC(=O)[C@H](C)N)C(=O)N1CCC[C@H]1C(=O)NCC(=O)N[C@@H](CCCN=C(N)N)C(=O)N[C@@H](CCCN=C(N)N)C(=O)N[C@@H](CO)C(=O)O'
+#  AMP: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)O)[C@@H](O)[C@H]1O'
+#  ANP: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)(O)O[P@](=O)(O)NP(=O)(O)O)[C@@H](O)[C@H]1O'
+#  APC: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)(O)C[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O'
+#  AR6: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OC[C@H]2O[C@H](O)[C@H](O)[C@@H]2O)[C@@H](O)[C@H]1O'
+#  ARG: 'NC(=[NH2+])NCCC[C@H](N)C(=O)O'
+#  ASN: 'NC(=O)C[C@H](N)C(=O)O'
+#  ASP: 'N[C@@H](CC(=O)O)C(=O)O'
+#  ATP: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@@](=O)(O)O[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O'
+#  B12: 'CC1=C2C(CCC(N)=O)C(C)(C)C3=CC4=N5->[Co+2]6(<-N7=C1C(C)(CCC(=O)NCC(C)OP(=O)(O)OC1C(CO)OC(n8cnc9cc(C)c(C)cc98)C1O)C(CC(N)=O)C7C1(C)N->6=C(C(C)=C5C(C)(CC(N)=O)C4CCC(N)=O)C(CCC(N)=O)C1(C)CC(N)=O)<-N32'
+#  BFP: 'O=P(O)(O)OC[C@H]1O[C@](O)(COP(=O)(O)O)[C@@H](O)[C@@H]1O'
+#  BGC: 'OC[C@H]1O[C@@H](O)[C@H](O)[C@@H](O)[C@@H]1O'
+#  BGC-BGC: 'OC[C@H]1O[C@@H](O[C@H]2[C@H](O)[C@@H](O)[C@H](O)O[C@@H]2CO)[C@H](O)[C@@H](O)[C@@H]1O'
+#  BH4: 'C[C@H](O)[C@H](O)[C@H]1CNc2nc(N)[nH]c(=O)c2N1'
+#  BLA: 'C=CC1=C(C)/C(=C/c2[nH]c(/C=C3\N=C(/C=C4\NC(=O)C(C)=C4C=C)C(C)=C3CCC(=O)O)c(CCC(=O)O)c2C)NC1=O'
+#  BMA: 'OC[C@H]1O[C@@H](O)[C@@H](O)[C@@H](O)[C@@H]1O'
+#  BTC: 'N[C@@H](CS)C(=O)O'
+#  BTN: 'O=C(O)CCCC[C@@H]1SC[C@@H]2NC(=O)N[C@@H]21'
+#  BU3: 'C[C@@H](O)[C@@H](C)O'
+#  C2E: 'Nc1nc2c(ncn2[C@@H]2O[C@@H]3CO[P@](=O)(O)O[C@H]4[C@@H](O)[C@H](n5cnc6c(=O)[nH]c(N)nc65)O[C@@H]4CO[P@](=O)(O)O[C@H]3[C@H]2O)c(=O)[nH]1'
+#  CA: '[Ca+2]'
+#  CAM: 'CC1(C)[C@@H]2CC[C@@]1(C)C(=O)C2'
+#  CAP: 'O=C(O)[C@@](O)(COP(=O)(O)O)[C@H](O)[C@H](O)COP(=O)(O)O'
+#  CBX: 'O=CO'
+#  CDL: 'CCCCCCCCCCCCCCCCCC(=O)OC[C@H](COP(=O)([O-])OCC(O)COP(=O)([O-])OC[C@@H](COC(=O)CCCCCCCCCCCCCCCCC)OC(=O)CCCCCCCCCCCCCCCCC)OC(=O)CCCCCCCCCCCCCCCCC'
+#  CHD: 'C[C@H](CCC(=O)O)[C@H]1CC[C@H]2[C@@H]3[C@H](O)C[C@@H]4C[C@H](O)CC[C@]4(C)[C@H]3C[C@H](O)[C@]12C'
+#  CIT: 'O=C(O)CC(O)(CC(=O)O)C(=O)O'
+#  CLA: 'C=Cc1c(C)c2n3c1C=C1C(C)=C(CC)C4=N1->[Mg]31<-N3=C(C5=c6c(c(C)c(n61)=C4)C(=O)[C@@H]5C(=O)OC)[C@@H](CCC(=O)OC/C=C(\C)CCC[C@H](C)CCC[C@H](C)CCCC(C)C)[C@H](C)C3=C2'
+#  CLR: 'CC(C)CCC[C@@H](C)[C@H]1CC[C@H]2[C@@H]3CC=C4C[C@@H](O)CC[C@]4(C)[C@H]3CC[C@]12C'
+#  CM5: 'OC[C@H]1O[C@H](O[C@H]2[C@H](O)[C@@H](O)[C@H](OCCCCCC3CCCCC3)O[C@@H]2CO)[C@H](O)[C@@H](O)[C@@H]1O'
+#  CMO: '[C-]#[O+]'
+#  CO: '[Co+2]'
+#  CO3: 'O=C([O-])[O-]'
+#  COA: 'CC(C)(CO[P@](=O)(O)O[P@@](=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1OP(=O)(O)O)[C@@H](O)C(=O)NCCC(=O)NCCS'
+#  CPG: 'Nc1nc2c(ncn2[C@@H]2O[C@H](COP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  CRY: 'OCC(O)CO'
+#  CTP: 'Nc1ccn([C@@H]2O[C@H](CO[P@](=O)(O)O[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)n1'
+#  CYC: 'CCC1=C(C)/C(=C/C2=N/C(=C\c3[nH]c(/C=C4\NC(=O)[C@H](C)[C@H]4CC)c(C)c3CCC(=O)O)C(CCC(=O)O)=C2C)NC1=O'
+#  CYN: '[C-]#N'
+#  CYZ: 'NS(=O)(=O)c1cc2c(cc1Cl)N[C@H]([C@H]1C[C@H]3C=C[C@@H]1C3)NS2(=O)=O'
+#  DCG-TMP-DCM-DCG-DCG: 'Cc1cn([C@H]2C[C@H](O[P@](=O)(O)OC[C@H]3O[C@@H](n4ccc(N)nc4=O)C[C@@H]3O[P@@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(=O)nc(N)[nH]c54)C[C@@H]3O[P@@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(=O)nc(N)[nH]c54)C[C@@H]3O)[C@@H](CO[P@](=O)(O)O[C@H]3C[C@H](n4cnc5c(=O)nc(N)[nH]c54)O[C@@H]3COP(=O)(O)O)O2)c(=O)[nH]c1=O'
+#  DCP: 'Nc1ccn([C@H]2C[C@H](O)[C@@H](CO[P@@](=O)(O)O[P@@](=O)(O)OP(=O)(O)O)O2)c(=O)n1'
+#  DGT: 'Nc1nc2c(ncn2[C@H]2C[C@H](O)[C@@H](CO[P@@](=O)(O)O[P@@](=O)(O)OP(=O)(O)O)O2)c(=O)[nH]1'
+#  DMS: 'CS(C)=O'
+#  DMU: 'CCCCCCCCCCO[C@@H]1O[C@H](CO)[C@@H](O[C@H]2O[C@H](CO)[C@@H](O)[C@H](O)[C@H]2O)[C@H](O)[C@H]1O'
+#  DTP: 'Nc1ncnc2c1ncn2[C@H]1C[C@H](O)[C@@H](CO[P@](=O)(O)O[P@@](=O)(O)OP(=O)(O)O)O1'
+#  EDO: 'OCCO'
+#  EST: 'C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@@H]2O'
+#  F6P: 'O=P(O)(O)OC[C@H]1O[C@](O)(CO)[C@@H](O)[C@@H]1O'
+#  FAD: 'Cc1cc2nc3c(=O)[nH]c(=O)nc-3n(C[C@H](O)[C@H](O)[C@H](O)CO[P@@](=O)(O)O[P@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](O)[C@@H]3O)c2cc1C'
+#  FDA: 'Cc1cc2c(cc1C)N(C[C@H](O)[C@H](O)[C@H](O)CO[P@@](=O)(O)O[P@@](=O)(O)OC[C@H]1O[C@@H](n3cnc4c(N)ncnc43)[C@H](O)[C@@H]1O)c1[nH]c(=O)[nH]c(=O)c1N2'
+#  FE: '[Fe+3]'
+#  FE2: '[Fe+2]'
+#  FLC: 'O=C([O-])CC(O)(CC(=O)[O-])C(=O)[O-]'
+#  FMN: 'Cc1cc2nc3c(=O)[nH]c(=O)nc-3n(C[C@H](O)[C@H](O)[C@H](O)COP(=O)(O)O)c2cc1C'
+#  FOL: 'Nc1nc(=O)c2nc(CNc3ccc(C(=O)N[C@@H](CCC(=O)O)C(=O)O)cc3)cnc2[nH]1'
+#  FUC: 'C[C@@H]1O[C@@H](O)[C@@H](O)[C@H](O)[C@@H]1O'
+#  FUM: 'O=C(O)/C=C/C(=O)O'
+#  G2P: 'Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@@](=O)(O)C[P@@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  G39: 'CCC(CC)O[C@@H]1C=C(C(=O)O)C[C@H](N)[C@H]1NC(C)=O'
+#  G4P: 'Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@](=O)(O)OP(=O)(O)O)[C@@H](O[P@](=O)(O)OP(=O)(O)O)[C@H]2O)c(=O)[nH]1'
+#  GAL: 'OC[C@H]1O[C@@H](O)[C@H](O)[C@@H](O)[C@H]1O'
+#  GAL-NAN: 'CC(=O)N[C@H]1[C@H]([C@H](O)[C@H](O)CO)O[C@@](O[C@@H]2[C@@H](O)[C@H](O)O[C@H](CO)[C@@H]2O)(C(=O)O)C[C@@H]1O'
+#  GCP: 'Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@](=O)(O)O[P@](=O)(O)CP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  GDP: 'Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  GDU: 'O=c1ccn([C@@H]2O[C@H](CO[P@@](=O)(O)O[P@@](=O)(O)O[C@H]3O[C@H](CO)[C@H](O)[C@H](O)[C@H]3O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  GGL: 'N[C@@H](CCC(=O)O)C(=O)O'
+#  GLA: 'OC[C@H]1O[C@H](O)[C@H](O)[C@@H](O)[C@H]1O'
+#  GLN: 'NC(=O)CC[C@H](N)C(=O)O'
+#  GLY: 'NCC(=O)O'
+#  GNP: 'Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@](=O)(O)O[P@](=O)(O)NP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  GSH: 'N[C@@H](CCC(=O)N[C@@H](CS)C(=O)NCC(=O)O)C(=O)O'
+#  GSP: 'Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@](=O)(O)O[P@](=O)(O)OP(O)(O)=S)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  GTP: 'Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@](=O)(O)O[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  GTX: 'CCCCCCSC[C@H](NC(=O)CC[C@H]([NH3+])C(=O)O)C(=O)NCC(=O)O'
+#  HEA: 'C=Cc1c(C)c2n3c1C=C1C(C)=C(CCC(=O)O)C4=N1->[Fe]31<-N3=C(C=c5c(C=O)c(CCC(=O)O)c(n51)=C4)C(C)=C([C@@H](O)CC/C=C(\C)CC/C=C(\C)CCC=C(C)C)C3=C2'
+#  HEC: 'CC=c1c(C)c2n3c1=Cc1c(C)c(CCC(=O)O)c4n1[Fe]31n3c(c(C)c(=CC)c3=C2)C=c2c(C)c(CCC(=O)O)c(n21)=C4'
+#  HEM: 'C=CC1=C(C)C2=Cc3c(C)c(CCC(=O)O)c4n3[Fe]35<-N6=C(C=c7c(C=C)c(C)c(n73)=CC1=N->52)C(C)=C(CCC(=O)O)C6=C4'
+#  HIS: 'N[C@@H](Cc1c[nH]c[nH+]1)C(=O)O'
+#  HPG: 'OCCCO'
+#  HSR: 'CC(=O)N[C@@H]1[C@@H](O)[C@H](O)[C@@H](CO)O[C@H]1O'
+#  HSR-FUC: 'CC(=O)N[C@H]1CO[C@H](CO[C@@H]2O[C@@H](C)[C@@H](O)[C@@H](O)[C@@H]2O)[C@@H](O)[C@@H]1O'
+#  HSR-GAL-NAN: 'CC(=O)N[C@@H]1[C@@H](O)[C@H](O[C@@H]2O[C@H](CO)[C@H](O)[C@H](O[C@]3(C(=O)O)C[C@H](O)[C@@H](NC(C)=O)[C@H]([C@H](O)[C@H](O)CO)O3)[C@H]2O)[C@@H](CO)O[C@H]1O'
+#  HSR-HSR: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO)O[C@H](CO)[C@@H](O)[C@@H]1O'
+#  HSR-HSR-BMA: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO)O[C@H](CO)[C@@H](O[C@@H]2O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]2O)[C@@H]1O'
+#  HSR-HSR-BMA-FUC: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO[C@@H]2O[C@@H](C)[C@@H](O)[C@@H](O)[C@@H]2O)O[C@H](CO)[C@@H](O[C@@H]2O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]2O)[C@@H]1O'
+#  HSR-HSR-BMA-MAN: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO)O[C@H](CO)[C@@H](O[C@@H]2O[C@H](CO)[C@@H](O)[C@H](O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O)[C@@H]2O)[C@@H]1O'
+#  HSR-HSR-BMA-MAN-FUC: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO[C@@H]2O[C@@H](C)[C@@H](O)[C@@H](O)[C@@H]2O)O[C@H](CO)[C@@H](O[C@@H]2O[C@H](CO[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O)[C@@H](O)[C@H](O)[C@@H]2O)[C@@H]1O'
+#  HSR-HSR-BMA-MAN-MAN: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO)O[C@H](CO)[C@@H](O[C@@H]2O[C@H](CO[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O)[C@@H](O)[C@H](O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O)[C@@H]2O)[C@@H]1O'
+#  HSR-HSR-BMA-MAN-MAN-FUC: 'CC(=O)N[C@@H]1[C@@H](O)[C@H](O[C@@H]2O[C@H](CO)[C@@H](O[C@@H]3O[C@H](CO[C@H]4O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]4O)[C@@H](O)[C@H](O[C@H]4O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]4O)[C@@H]3O)[C@H](O)[C@H]2NC(C)=O)[C@@H](CO[C@@H]2O[C@@H](C)[C@@H](O)[C@@H](O)[C@@H]2O)O[C@H]1O'
+#  HSR-HSR-BMA-MAN-MAN-MAN: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO)O[C@H](CO)[C@@H](O[C@@H]2O[C@H](CO[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O)[C@@H](O)[C@H](O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O)[C@@H]2O)[C@@H]1O'
+#  HSR-HSR-BMA-MAN-MAN-MAN-MAN: 'CC(=O)N[C@@H]1[C@@H](O)[C@H](O[C@@H]2O[C@H](CO)[C@@H](O[C@@H]3O[C@H](CO[C@H]4O[C@H](CO[C@H]5O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]5O[C@H]5O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]5O)[C@@H](O)[C@H](O)[C@@H]4O)[C@@H](O)[C@H](O[C@H]4O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]4O)[C@@H]3O)[C@H](O)[C@H]2NC(C)=O)[C@@H](CO)O[C@H]1O'
+#  HSR-HSR-BMA-MAN-MAN-MAN-MAN-MAN: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO)O[C@H](CO)[C@@H](O[C@@H]2O[C@H](CO[C@H]3O[C@H](CO[C@H]4O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]4O)[C@@H](O)[C@H](O)[C@@H]3O)[C@@H](O)[C@H](O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O)[C@@H]2O)[C@@H]1O'
+#  HSR-HSR-BMA-MAN-MAN-MAN-MAN-MAN-MAN: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO)O[C@H](CO)[C@@H](O[C@@H]2O[C@H](CO[C@H]3O[C@H](CO[C@H]4O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]4O)[C@@H](O)[C@H](O[C@H]4O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]4O)[C@@H]3O)[C@@H](O)[C@H](O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]3O)[C@@H]2O)[C@@H]1O'
+#  HSR-HSR-FUC: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO[C@@H]2O[C@@H](C)[C@@H](O)[C@@H](O)[C@@H]2O)O[C@H](CO)[C@@H](O)[C@@H]1O'
+#  HSR-HSR-HSR: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O[C@@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@H]3NC(C)=O)[C@@H](CO)OC[C@@H]2NC(C)=O)O[C@H](CO)[C@@H](O)[C@@H]1O'
+#  HSR-HSR-MAN: 'CC(=O)N[C@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)CO[C@@H]2CO)O[C@H](CO)[C@@H](O[C@H]2O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]2O)[C@@H]1O'
+#  HSZ: 'O[C@@H]1[C@@H](O)[C@H](O)OC[C@H]1O'
+#  IMD: 'c1c[nH+]c[nH]1'
+#  IMP: 'O=c1[nH]cnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)O)[C@@H](O)[C@H]1O'
+#  K: '[K+]'
+#  LEU: 'CC(C)C[C@H](N)C(=O)O'
+#  LMN: 'CCCCCCCCCCC(CCCCCCCCCC)(CO[C@H]1O[C@@H](CO)[C@H](O[C@@H]2O[C@@H](CO)[C@H](O)[C@@H](O)[C@@H]2O)[C@@H](O)[C@@H]1O)CO[C@H]1O[C@@H](CO)[C@H](O[C@@H]2O[C@@H](CO)[C@H](O)[C@@H](O)[C@@H]2O)[C@@H](O)[C@H]1O'
+#  LTR: 'N[C@@H](Cc1c[nH]c2ccccc12)C(=O)O'
+#  LYS: 'N[C@@H](CCCC[NH3+])C(=O)O'
+#  LYS-ILE-LEU-HIS-ARG-LEU-LEU-GLN-ASP: 'CC[C@H](C)[C@H](NC(=O)[C@H](C)N)C(=O)N[C@@H](CC(C)C)C(=O)N[C@@H](CC1=NC=NC1)C(=O)N[C@@H](CCCN=C(N)N)C(=O)N[C@@H](CC(C)C)C(=O)N[C@@H](CC(C)C)C(=O)N[C@@H](CCC(N)=O)C(=O)N[C@H](C=O)CC(=O)O'
+#  MAM: 'CO[C@H]1O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]1O'
+#  MAN: 'OC[C@H]1O[C@H](O)[C@@H](O)[C@@H](O)[C@@H]1O'
+#  MAN-MAN: 'O=C1O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]1O[C@H]1O[C@H](CO)[C@@H](O)[C@H](O)[C@@H]1O'
+#  MES: 'O=S(=O)([O-])CC[NH+]1CCOCC1'
+#  MET: 'CSCC[C@H](N)C(=O)O'
+#  MG: '[Mg+2]'
+#  MGD: 'Nc1nc2c(c(=O)[nH]1)N[C@H]1C(S)=C(S)[C@@H](CO[P@](=O)(O)O[P@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(=O)[nH]c(N)nc54)[C@H](O)[C@@H]3O)O[C@H]1N2'
+#  MN: '[Mn+2]'
+#  MPD: 'C[C@H](O)CC(C)(C)O'
+#  MTA: 'CSC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O'
+#  MTX: 'CN(Cc1cnc2nc(N)nc(N)c2n1)c1ccc(C(=O)N[C@@H](CCC(=O)O)C(=O)O)cc1'
+#  MYA: 'CCCCCCCCCCCCCC(=O)SCCNC(=O)CCNC(=O)[C@H](O)C(C)(C)COP(=O)(O)OP(=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1OP(=O)(O)O'
+#  NAD: 'NC(=O)c1ccc[n+]([C@@H]2O[C@H](CO[P@@](=O)([O-])O[P@@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](O)[C@@H]3O)[C@@H](O)[C@H]2O)c1'
+#  NAI: 'NC(=O)C1=CN([C@@H]2O[C@H](CO[P@](=O)(O)O[P@@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](O)[C@@H]3O)[C@@H](O)[C@H]2O)C=CC1'
+#  NAN: 'CC(=O)N[C@H]1[C@H]([C@H](O)[C@H](O)CO)O[C@@](O)(C(=O)O)C[C@@H]1O'
+#  NAP: 'NC(=O)c1ccc[n+]([C@@H]2O[C@H](CO[P@@](=O)([O-])O[P@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](OP(=O)(O)O)[C@@H]3O)[C@@H](O)[C@H]2O)c1'
+#  NDG: 'CC(=O)N[C@@H]1[C@@H](O)[C@H](O)[C@@H](CO)O[C@@H]1O'
+#  NDP: 'NC(=O)C1=CN([C@@H]2O[C@H](CO[P@](=O)(O)O[P@@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](OP(=O)(O)O)[C@@H]3O)[C@@H](O)[C@H]2O)C=CC1'
+#  NI: '[Ni+2]'
+#  OLC: 'CCCCCCCC/C=C\CCCCCCCC(=O)OC[C@H](O)CO'
+#  OTT-PHE-SEG-PRO-MAA-ALA-MP8: 'C/C=C/C=C/C=C/C(=O)N[C@@H](Cc1ccccc1)C(=O)N[C@H]1COC(=O)[C@@H]2C[C@@H](C)CN2C(=O)[C@H](C)NC(=O)[C@H](C)N(C)C(=O)[C@@H]2CCCN2C1=O'
+#  OXL: 'O=C([O-])C(=O)[O-]'
+#  OXY: 'O=O'
+#  PEB: 'C=CC1=C(C)[C@@H](Cc2[nH]c(/C=C3\N=C(/C=C4\NC(=O)[C@H](C)[C@H]4CC)C(C)=C3CCC(=O)O)c(CCC(=O)O)c2C)NC1=O'
+#  PEG: 'OCCOCCO'
+#  PGA: 'O=C(O)COP(=O)(O)O'
+#  PHE: 'N[C@@H](Cc1ccccc1)C(=O)O'
+#  PIO: 'CCCCCCCC(=O)OC[C@H](COP(=O)(O)O[C@@H]1[C@H](O)[C@H](O)[C@@H](OP(=O)(O)O)[C@H](OP(=O)(O)O)[C@H]1O)OC(=O)CCCCCCC'
+#  PLP: 'Cc1ncc(COP(=O)(O)O)c(C=O)c1O'
+#  PO4: 'O=P([O-])([O-])[O-]'
+#  POP: 'O=[P@@]([O-])(O)O[P@](=O)([O-])O'
+#  PRO: 'O=C(O)[C@@H]1CCCN1'
+#  PTP: 'Cc1cn([C@H]2C[C@H](OP(=O)(O)O)[C@@H](COP(=O)(O)O)O2)c(=O)[nH]c1=O'
+#  PYR: 'CC(=O)C(=O)O'
+#  SAH: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](CSCC[C@H](N)C(=O)O)[C@@H](O)[C@H]1O'
+#  SAL: 'O=C(O)c1ccccc1O'
+#  SAM: 'C[S@@+](CC[C@H](N)C(=O)[O-])C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O'
+#  SEG: 'N[C@@H](CO)C(=O)O'
+#  SF4: '[S]12[Fe]3[S]4[Fe]1[S]1[Fe]2[S]3[Fe]41'
+#  SFG: 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](C[C@@H](N)CC[C@H](N)C(=O)O)[C@@H](O)[C@H]1O'
+#  SO4: 'O=S(=O)([O-])[O-]'
+#  SRM: 'C[C@@]1(CC(=O)O)C2=Cc3c(CC(=O)O)c(CCC(=O)O)c4n3[Fe]35<-N2=C(C=C2N->3=C(C=c3c(CC(=O)O)c(CCC(=O)O)c(n35)=C4)C(CCC(=O)O)[C@]2(C)CC(=O)O)C1CCC(=O)O'
+#  STO: 'CN[C@@H]1C[C@H]2O[C@@](C)([C@@H]1OC)n1c3ccccc3c3c4c(c5c6ccccc6n2c5c31)C(=O)NC4'
+#  THR: 'C[C@@H](O)[C@H](N)C(=O)O'
+#  TPP: 'Cc1ncc(C[n+]2csc(CCO[P@](=O)(O)OP(=O)(O)O)c2C)c(N)n1'
+#  TRS: '[NH3+]C(CO)(CO)CO'
+#  TTP: 'Cc1cn([C@H]2C[C@H](O)[C@@H](CO[P@](=O)(O)O[P@@](=O)(O)OP(=O)(O)O)O2)c(=O)[nH]c1=O'
+#  TYR: 'N[C@@H](Cc1ccc(O)cc1)C(=O)O'
+#  U25: 'O=c1ccn([C@@H]2O[C@H](COP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  UD1: 'CC(=O)N[C@H]1[C@@H](O[P@@](=O)(O)O[P@@](=O)(O)OC[C@H]2O[C@@H](n3ccc(=O)[nH]c3=O)[C@H](O)[C@@H]2O)O[C@H](CO)[C@@H](O)[C@@H]1O'
+#  UDP: 'O=c1ccn([C@@H]2O[C@H](CO[P@@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  UPG: 'O=c1ccn([C@@H]2O[C@H](CO[P@](=O)(O)O[P@](=O)(O)O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@H]3O)[C@@H](O)[C@H]2O)c(=O)[nH]1'
+#  Y01: 'CC(C)CCC[C@@H](C)[C@H]1CC[C@H]2[C@@H]3CC=C4C[C@@H](OC(=O)CCC(=O)O)CC[C@]4(C)[C@H]3CC[C@]12C'
+#  ZN2: '[Zn+2]'
