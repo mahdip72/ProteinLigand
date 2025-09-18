@@ -42,9 +42,7 @@ class LigandPredictionModel(nn.Module):
         num_ligands = configs.num_ligands
         ligand_names = configs.ligands
         # If true, use chemical encoder for ligand representation, else use embedding table
-        self.use_chemical_encoder = configs.model.use_chemical_encoder
-        # noise added to the ESM2 protein representation
-        self.noise_std = configs.noise_std
+        self.use_chemical_encoder = configs.stage_3
 
         # 2. Load the pretrained transformer
         config = AutoConfig.from_pretrained(base_model_name)
@@ -242,10 +240,6 @@ class LigandPredictionModel(nn.Module):
         # protein_repr = outputs.last_hidden_state
         protein_repr = self.encoder_to_decoder_dropout(outputs.last_hidden_state)
 
-        # Adding noise to the protein representation as regularization
-        if self.training:
-            noise = torch.randn_like(protein_repr) * self.noise_std
-            protein_repr = protein_repr + noise
 
         # 2. Retrieve ligand representation
         if self.use_chemical_encoder:

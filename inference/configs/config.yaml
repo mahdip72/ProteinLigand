@@ -1,14 +1,24 @@
-stage_3: true
-sequence_length: 512
+# =========================
+# USER SETTINGS (edit these)
+# =========================
+input_csv_path: "./data/example_data.csv"
+output_csv_path: "./data/output.csv"
+checkpoint_path: "./placeholder_checkpoint.pth"
+stage_3: true # Set to true if using Stage 3 checkpoint, false if using Stage 2 checkpoint
+batch_size: 8
+prediction_threshold: 0.5 # Set the cutoff for positive binding classification
+device_type: "cuda"
 use_mixed_precision: true
 mixed_precision_dtype: "bfloat16"
+lig_name_col: "ligand_name" # Modify if your file uses different headers
+prot_seq_col: "protein_sequence"
+smiles_col: "SMILES" # Only required for Stage 3
+sequence_length: 1024 # Context length for protein sequences
+output_binding_probs: false # If true, outputs full list of binding probabilities for each residue in the output csv
 
-
-use_dynamic_SMILES: true # Using dynamic SMILES representation based on dataset instead of static dictionary
-
-checkpoint_path: "/mnt/pixstor/data/dc57y/2025-08-12__13-19-32__MOLFORMER_1280_ESM2_ZERO_SHOT/checkpoints/stage_3.pth"
-  # "/mnt/pixstor/data/dc57y/2025-08-06__20-06-06__BIOLIP_ALL_ET/checkpoints/checkpoint_epoch_19.pth"
-  # "/mnt/pixstor/data/dc57y/2025-08-12__13-19-32__MOLFORMER_1280_ESM2_ZERO_SHOT/checkpoints/stage_3.pth"
+# =========================
+# MODEL SETTINGS
+# =========================
 model:
   cache_dir: "./hf_cache"
   use_compile: false
@@ -23,15 +33,15 @@ model:
   structure_aware: false
   use_chemical_encoder: true
   chemical_encoder_source: "huggingface"
-  huggingface_model_name: "ibm-research/MoLFormer-XL-both-10pct" # Provided name if using huggingface
+  huggingface_model_name: "ibm-research/MoLFormer-XL-both-10pct"
   chemical_encoder_num_unfrozen_layers: 0
   unfreeze_clm_embeddings: false
   clm_max_length: 128
   clm_output_dim: 768
   clm_hidden_dropout_rate: 0.3
   clm_embedding_dropout_rate: 0.0
-
-num_ligands: 166
+use_dynamic_SMILES: true
+num_ligands: 166 # Only for Stage 2
 optimizer:
   beta_1: 0.9
   beta_2: 0.98
@@ -49,8 +59,6 @@ optimizer:
   use_8bit_adam: false
   weight_decay: 1e-2
   weight_decouple: true
-pos_weight_divisor: 30
-result_path: ./results/test/
 scheduler:
   T_0: 24
   T_max: 24
@@ -59,24 +67,12 @@ scheduler:
   eta_min_first: 0.0005
   eta_min_second: 1.0e-05
   name: cosine_annealing
-tensorboard_log: true
-test_settings:
-  batch_size: 32
-  num_workers: 4
-#  test_splits: [ "underrepresented_test", "overrepresented_test", "zero_shot_test" ] # comment out if not using zero shot dataset
-  test_splits: [ "underrepresented_test", "overrepresented_test" ]
 tqdm_progress_bar: true
-
 transformer_head:
   num_heads: 8
   num_layers: 4
   dim_feedforward: 2048
   dropout: 0.3
-
-data_root: "./data"
-noise_std: 0.05
-mask_prob: 0.00
-mask_token_id: 32
 ligands:
   - 2BA
   - 5GP
@@ -246,7 +242,6 @@ ligands:
   - ZN
 
 ligand_to_smiles:
-  # For Biolip
   2BA: 'c1nc(c2c(n1)n(cn2)C3C(C4C(O3)COP(=O)(OC5C(COP(=O)(O4)O)OC(C5O)n6cnc7c6ncnc7N)O)O)N'
   5GP: 'NC1=Nc2n(cnc2C(=O)N1)[C@@H]3O[C@H](CO[P](O)(O)=O)[C@@H](O)[C@H]3O'
   6OU: 'CCCCCCCCCCCCCCCC(=O)OC[C@H](CO[P](O)(=O)OCCN)OC(=O)CCCCCCC\C=C/CCCCCCCC'
