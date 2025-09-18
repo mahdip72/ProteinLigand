@@ -26,7 +26,19 @@ We provide [datasets](https://mailmissouri-my.sharepoint.com/:f:/r/personal/mpng
 
 ## Inference
 
-[Instructions for performing inference. Include example commands and required inputs/outputs.]
+Run residue-level binding-site predictions from a trained checkpoint.
+
+### Steps
+
+- Clone into the `inference` folder. 
+- Download a checkpoint from below into the directory. 
+  - **Stage 2** (embedding table): simpler to run, slightly better performance, does not require SMILES input, but only supports 166 ligands types (listed in `data/example_data.csv`).  
+  - **Stage 3** (chemical encoder): uses ligand SMILES to support zero-shot inference.  
+- Provide your input in CSV form in `data`.  
+- Modify the user settings in `configs/config.yaml` in accordance to your setup.  
+- Run `python inference.py` to generate a CSV file containing binding-site predictions.
+
+### Download Checkpoints
 
 - Stage 2 checkpoint: [link](https://mailmissouri-my.sharepoint.com/:u:/g/personal/mpngf_umsystem_edu/Ef-_BQfoVchFjLdSPPOs1w4BSzLocvT-sfPXOm06cK-J8g?e=OHbGyL)
 
