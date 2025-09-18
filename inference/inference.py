@@ -22,8 +22,6 @@ def resolve_autocast_dtype(configs):
         return torch.bfloat16
     if mp in ("fp32", "float32", "single"):
         return torch.float32
-    if mp in ("fp64", "float64", "double"):
-        return torch.float64
     return None
 
 # -------------------------

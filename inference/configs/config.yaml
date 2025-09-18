@@ -1,20 +1,20 @@
 # =========================
 # USER SETTINGS (edit these)
 # =========================
-input_csv_path: "./data/example_data.csv"
-output_csv_path: "./data/output.csv"
-checkpoint_path: "./placeholder_checkpoint.pth"
+input_csv_path: "./data/example_data.csv" # Path to your input CSV file
+output_csv_path: "./data/output.csv" # Path to save output predictions
+checkpoint_path: "./placeholder_checkpoint.pth" # Path to your checkpoint
 stage_3: true # Set to true if using Stage 3 checkpoint, false if using Stage 2 checkpoint
 batch_size: 8
 prediction_threshold: 0.5 # Set the cutoff for positive binding classification
-device_type: "cuda"
+device_type: "cuda" # Options: cuda, cpu
 use_mixed_precision: true
-mixed_precision_dtype: "bfloat16"
+mixed_precision_dtype: "bfloat16" # Options: float16, bfloat16, float32
 lig_name_col: "ligand_name" # Modify if your file uses different headers
 prot_seq_col: "protein_sequence"
-smiles_col: "SMILES" # Only required for Stage 3
+smiles_col: "SMILES" # Only required for Stage 3 checkpoints
 sequence_length: 1024 # Context length for protein sequences
-output_binding_probs: false # If true, outputs full list of binding probabilities for each residue in the output csv
+output_binding_probs: true # If true, outputs a full list of binding probabilities for each residue in the output csv
 
 # =========================
 # MODEL SETTINGS
