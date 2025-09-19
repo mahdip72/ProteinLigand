@@ -6,13 +6,21 @@ Accurate identification of protein–ligand binding residues is critical for mec
 
 ## Installation
 
-[Provide installation instructions here. Include a bash script for setup.]
+Follow these steps on Ubuntu to set up a clean Python environment and run the installer script.
+
+- Prerequisites: Ubuntu 20.04+ with Python 3.9–3.11 and pip. GPU is optional.
+- Recommended: use a virtual environment to avoid conflicting packages.
 
 ```bash
-# Example bash script placeholder
-#!/bin/bash
-# Add installation commands here, e.g.,
-# pip install -r requirements.txt
+
+# 1) Create and activate a virtual environment (in project root)
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+
+# 2) Make the installer executable and run it
+chmod +x install.sh
+./install.sh
 ```
 
 ## Downloading Datasets
