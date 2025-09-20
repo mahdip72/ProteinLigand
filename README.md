@@ -16,7 +16,6 @@ Follow these steps on Ubuntu to set up a clean Python environment and run the in
 # 1) Create and activate a virtual environment (in project root)
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
 
 # 2) Make the installer executable and run it
 chmod +x install.sh
