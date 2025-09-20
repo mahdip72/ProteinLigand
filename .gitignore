@@ -170,3 +170,8 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 .idea
+
+inference/hf_cache/
+
+# ignore any pth file
+**/*.pth
