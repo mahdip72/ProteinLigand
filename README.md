@@ -78,7 +78,7 @@ The script loads the checkpoint, runs predictions with automatic mixed precision
 - For the supplied `example_data.csv`, Stage 2 and Stage 3 can be run back-to-back by toggling `stage_3` and `checkpoint_path` as described above.
 - To use custom data, ensure sequences are plain amino-acid strings and, for Stage 3, SMILES strings are present. Adjust `prediction_threshold` or post-process the probability column to suit your application.
 
-> **Note:** Inference has only been validated with mixed-precision enabled on NVIDIA GPUs. If you need pure CPU or full-precision runs, test carefully before relying on the outputs.
+> **Note:** Inference has only been validated with mixed-precision enabled on NVIDIA GPUs. If you need pure CPU or full-precision runs, test carefully before relying on the outputs. The first run downloads the ESM backbone weights (used by both Stage 2 and Stage 3) into `inference/hf_cache/`; Stage 3 additionally fetches the MoLFormer chemical encoder. Subsequent runs reuse those files.
 
 Caching note: the first Stage 3 run downloads the MoLFormer chemical encoder; subsequent runs reuse the files under `inference/hf_cache/`.
 
