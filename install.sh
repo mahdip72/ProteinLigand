@@ -1,5 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pip install --upgrade pip
 pip install torch torchvision
-pip install transformers
+pip install transformers==4.41.2 tokenizers==0.19.1
 pip install torchmetrics
 pip install pandas
 pip install numpy

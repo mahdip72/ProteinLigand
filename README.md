@@ -36,21 +36,52 @@ We provide [datasets](https://mailmissouri-my.sharepoint.com/:f:/r/personal/mpng
 
 Run residue-level binding-site predictions from a trained checkpoint.
 
-### Steps
+### 1. Prepare the inference workspace
 
-- Clone into the `inference` folder. 
-- Download a checkpoint from below into the directory. 
-  - **Stage 2** (embedding table): simpler to run, slightly better performance, does not require SMILES input, but only supports 166 ligands types (listed in `data/example_data.csv`).  
-  - **Stage 3** (chemical encoder): uses ligand SMILES to support zero-shot inference.  
-- Provide your input in CSV form in `data`.  
-- Modify the user settings in `configs/config.yaml` in accordance to your setup.  
-- Run `python inference.py` to generate a CSV file containing binding-site predictions.
+1. `cd inference`
+2. Download checkpoints into this directory:
+   - **Stage 2** (embedding table): [download](https://mailmissouri-my.sharepoint.com/:u:/g/personal/mpngf_umsystem_edu/Ef-_BQfoVchFjLdSPPOs1w4BSzLocvT-sfPXOm06cK-J8g?e=OHbGyL)
+   - **Stage 3** (chemical encoder): [download](https://mailmissouri-my.sharepoint.com/:u:/g/personal/mpngf_umsystem_edu/ERN92UnmoYZIgyh0p-7SnZcBLex5-0FSzW6uWd9QS-jaUQ?e=9kIJOi)
+3. Place your input CSV under `inference/data/`. An example file is provided at `inference/data/example_data.csv`.
 
-### Download Checkpoints
+### 2. Configure inputs
 
-- Stage 2 checkpoint: [link](https://mailmissouri-my.sharepoint.com/:u:/g/personal/mpngf_umsystem_edu/Ef-_BQfoVchFjLdSPPOs1w4BSzLocvT-sfPXOm06cK-J8g?e=OHbGyL)
+Update `inference/configs/config.yaml`:
 
-- Stage 3 checkpoint: [link](https://mailmissouri-my.sharepoint.com/:u:/g/personal/mpngf_umsystem_edu/ERN92UnmoYZIgyh0p-7SnZcBLex5-0FSzW6uWd9QS-jaUQ?e=9kIJOi)
+- `input_csv_path`: path to your CSV (e.g., `./data/example_data.csv`).
+- `output_csv_path`: output file for predictions (e.g., `./data/stage2_predictions.csv`).
+- `checkpoint_path`: choose either `./stage2_checkpoint.pth` or `./stage3_checkpoint.pth`.
+- `stage_3`: set to `false` for Stage 2, `true` for Stage 3.
+- `device_type`: `cuda` or `cpu`.
+
+Additional expectations:
+
+- The CSV must contain columns named `ligand_name` and `protein_sequence` (configurable via `lig_name_col` / `prot_seq_col`).
+- Stage 2 accepts only the 166 ligands seen during training; ensure ligand names match those in `example_data.csv`.
+- Stage 3 requires a `SMILES` column with valid strings for every row (zero-shot ligands are allowed).
+
+### 3. Run inference
+
+From the `inference` directory (with the environment activated):
+
+```bash
+python inference.py
+```
+
+The script loads the checkpoint, runs predictions with automatic mixed precision by default, and writes a CSV with:
+
+- `predictions`: list of 0/1 residue labels (`prediction_threshold` controls the cutoff).
+- `positive_indices`: residue indices predicted as binding.
+- `binding_probabilities`: per-residue probabilities (enabled by `output_binding_probs`).
+
+### 4. Working with outputs
+
+- For the supplied `example_data.csv`, Stage 2 and Stage 3 can be run back-to-back by toggling `stage_3` and `checkpoint_path` as described above.
+- To use custom data, ensure sequences are plain amino-acid strings and, for Stage 3, SMILES strings are present. Adjust `prediction_threshold` or post-process the probability column to suit your application.
+
+> **Note:** Inference has only been validated with mixed-precision enabled on NVIDIA GPUs. If you need pure CPU or full-precision runs, test carefully before relying on the outputs.
+
+Caching note: the first Stage 3 run downloads the MoLFormer chemical encoder; subsequent runs reuse the files under `inference/hf_cache/`.
 
 
 ## Results
