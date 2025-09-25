@@ -9,7 +9,7 @@ batch_size: 8
 prediction_threshold: 0.5 # Set the cutoff for positive binding classification
 device_type: "cuda" # Options: cuda, cpu
 use_mixed_precision: true
-mixed_precision_dtype: "bfloat16" # Options: float16, bfloat16, float32
+mixed_precision_dtype: "bfloat16" # Supported options: bfloat16, float32
 lig_name_col: "ligand_name" # Modify if your file uses different headers
 prot_seq_col: "protein_sequence"
 smiles_col: "SMILES" # Only required for Stage 3 checkpoints

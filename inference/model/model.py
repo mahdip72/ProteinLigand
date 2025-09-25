@@ -32,7 +32,12 @@ class LigandPredictionModel(nn.Module):
         # 1. Read from configs
         base_model_name = configs.model.model_name
         hidden_size = configs.model.hidden_size
+        use_mp = configs.model.use_mixed_precision if hasattr(configs.model, "use_mixed_precision") else False
         dtype = configs.mixed_precision_dtype
+        if use_mp and dtype in ("bf16", "bfloat16", "bfloat"):
+            torch_dtype = torch.bfloat16
+        else:
+            torch_dtype = None
         freeze_backbone = configs.model.freeze_backbone
         freeze_embeddings = configs.model.freeze_embeddings
         num_unfrozen_layers = configs.model.num_unfrozen_layers
@@ -45,8 +50,7 @@ class LigandPredictionModel(nn.Module):
         self.use_chemical_encoder = configs.stage_3
 
         # 2. Load the pretrained transformer
-        config = AutoConfig.from_pretrained(base_model_name)
-        config.torch_dtype = dtype
+        config = AutoConfig.from_pretrained(base_model_name, torch_dtype=torch_dtype)
         cache_dir = getattr(configs.model, "cache_dir", None)
         if cache_dir and os.path.isdir(cache_dir):
             self.base_model = AutoModel.from_pretrained(base_model_name, config=config, cache_dir=cache_dir)
@@ -124,8 +128,7 @@ class LigandPredictionModel(nn.Module):
                 self.smiles_tokenizer.bos_token = "<s>"
                 self.smiles_tokenizer.eos_token = "</s>"
                 self.smiles_tokenizer.mask_token = "<unk>"
-                clm_config = AutoConfig.from_pretrained(huggingface_model_name, trust_remote_code=True)
-                clm_config.torch_dtype = dtype
+                clm_config = AutoConfig.from_pretrained(huggingface_model_name, trust_remote_code=True, torch_dtype=torch_dtype)
                 clm_hidden_dropout = configs.model.clm_hidden_dropout_rate if configs.model.clm_hidden_dropout_rate else 0.0
                 clm_embedding_dropout = configs.model.clm_embedding_dropout_rate if configs.model.clm_embedding_dropout_rate else 0.0
                 clm_config.hidden_dropout_prob = clm_hidden_dropout
@@ -268,7 +271,7 @@ class LigandPredictionModel(nn.Module):
                 ligand_hidden, _ = self.smiles_model(featurized)
                 ligand_repr = self.proj_layernorm(self.projector(ligand_hidden))
                 mask = (featurized["mask"] == 0).to(input_ids.device)
-                memory_key_padding_mask = F.pad(mask, (0, 1), value=True) # Need to pad mask to match ligand_repr length
+                memory_key_padding_mask = F.pad(mask, (0, 1), value=True)
 
         else:
             ligand_repr = self.ligand_embedding(ligand_idx).unsqueeze(1)
@@ -314,7 +317,7 @@ def prepare_model(configs):
     model = LigandPredictionModel(configs)
 
     print(f"Loaded model: {model_name}")
-    print(f"Model has {model.num_parameters():,} trainable parameters")
+    # print(f"Model has {model.num_parameters():,} trainable parameters")
 
     return tokenizer, model
 

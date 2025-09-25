@@ -7,19 +7,23 @@ from torch.utils.data import Dataset, DataLoader
 from torch.amp import autocast
 from model.utils import load_configs, load_checkpoint
 from model.model import prepare_model
+from contextlib import nullcontext
 
 # -------------------------
 # Helpers
 # -------------------------
-def resolve_autocast_dtype(configs):
+def resolve_autocast_dtype(configs, device):
+    if device.type != "cuda":
+        return None
     use_mp = getattr(configs, "use_mixed_precision", False)
     if not use_mp:
         return None
     mp = str(getattr(configs, "mixed_precision_dtype", "")).lower()
-    if mp in ("fp16", "float16", "half"):
-        return torch.float16
     if mp in ("bf16", "bfloat16", "bfloat"):
-        return torch.bfloat16
+        if hasattr(torch.cuda, "is_bf16_supported") and torch.cuda.is_bf16_supported():
+            return torch.bfloat16
+        print("Warning: bf16 not supported on this GPU.")
+        return None
     if mp in ("fp32", "float32", "single"):
         return torch.float32
     return None
@@ -86,7 +90,7 @@ def run_inference(model, tokenizer, device, df, configs):
     smiles_col     = getattr(configs, "smiles_col", None)
     out_probs      = bool(getattr(configs, "output_binding_probs", True))
     stage3         = bool(getattr(configs, "stage_3", False))
-    ac_dtype = resolve_autocast_dtype(configs)
+    ac_dtype = resolve_autocast_dtype(configs, device)
 
     dataset = InferenceDataset(
         df=df,
@@ -158,7 +162,12 @@ def run_inference(model, tokenizer, device, df, configs):
             ligand_idx   = torch.tensor(idxs, dtype=torch.long, device=device)
             ligand_smiles = None
 
-        with autocast(device_type=device.type, dtype=ac_dtype):
+        ac_ctx = (
+            autocast(device_type="cuda", dtype=ac_dtype)
+            if (device.type == "cuda" and ac_dtype is not None)
+            else nullcontext()
+        )
+        with ac_ctx:
             logits = model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
