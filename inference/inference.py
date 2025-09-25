@@ -104,20 +104,15 @@ def run_inference(model, tokenizer, device, df, configs):
 
     ligand2idx = None
     if not stage3:
-        train_ligands = list(getattr(configs, "ligands", []))
-        if not train_ligands:
-            raise ValueError("Stage 2 inference requires 'configs.ligands' to be set.")
-        ligand2idx = {lig: i for i, lig in enumerate(sorted(set(train_ligands)))}
-
+        ligand2idx = {ligand: idx for idx, ligand in model.idx_to_ligand.items()}
         unknown = set(df[lig_name_col].unique()) - set(ligand2idx.keys())
         if unknown:
             raise ValueError(
                 "Stage 2 checkpoint requires all ligands to be known. "
                 f"Unknown ligand names in input: {sorted(list(unknown))}. "
-                "Use a Stage 3 checkpoint or filter your input."
-                "Refer to example_data.csv for the list of the 166 supported ligands."
+                "Use a Stage 3 checkpoint or filter your input. "
+                "Refer to example_data.csv for the list of the supported ligands."
             )
-
     n = len(df)
     all_pred_json    = [""] * n
     all_pos_indices  = [""] * n
