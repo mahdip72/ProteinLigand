@@ -40,6 +40,7 @@ Run residue-level binding-site predictions from a trained checkpoint.
 1. `cd inference`
 2. Download checkpoints into this directory:
    - **Stage 2** (embedding table): [download](https://mailmissouri-my.sharepoint.com/:u:/g/personal/mpngf_umsystem_edu/Ef-_BQfoVchFjLdSPPOs1w4BSzLocvT-sfPXOm06cK-J8g?e=OHbGyL)
+   *Note: This checkpoint only supports 166 ligands, not the full 167 reported in the paper. This is because it was trained on an older version of the dataset.*
    - **Stage 3** (chemical encoder): [download](https://mailmissouri-my.sharepoint.com/:u:/g/personal/mpngf_umsystem_edu/ERN92UnmoYZIgyh0p-7SnZcBLex5-0FSzW6uWd9QS-jaUQ?e=9kIJOi)
 3. Place your input CSV under `inference/data/`. An example file is provided at `inference/data/example_data.csv`.
 
