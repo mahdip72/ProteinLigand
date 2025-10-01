@@ -4,6 +4,14 @@
 
 Accurate identification of protein–ligand binding residues is critical for mechanistic biology and drug discovery, yet performance varies widely across ligand families and data regimes. We present a systematic evaluation framework that stratifies ligands into three settings, overrepresented (many examples), underrepresented (tens of examples), and zero-shot (unseen at training). We developed a three-stage, sequence-based modeling suite that progressively adds ligand conditioning and zero-shot capability, and used an evaluation framework to assess the suite. Stage 1 trains per-ligand predictors using a pretrained protein language model (PLM). Stage 2 introduces ligand-aware conditioning via an embedding table, enabling a single multi-ligand model. Stage 3 replaces the table with a pretrained chemical language model (CLM) operating on SMILES, enabling zero-shot generalization. We show Stage 2 improves Macro F1 on the overrepresented test set from 0.4769 (Stage 1) to 0.5832 and outperforms sequence- and structure-based baselines. Stage 3 attains zero-shot performance (F1 = 0.3109) on 5612 previously unseen ligands while remaining competitive on represented ligands. Ablations across five PLM scales and multiple CLMs reveal larger PLM backbones consistently increase Macro F1 across all regimes, whereas scaling the CLM yields modest or inconsistent gains, which need further investigation. 
 
+## Model Architecture
+
+### Stage 2: Multi-Ligand Model with Embedding Table
+<img src="src/stage_2.png" alt="Stage 2 Architecture" width="600">
+
+### Stage 3: Zero-Shot Model with Chemical Language Model
+<img src="src/stage_3.png" alt="Stage 3 Architecture" width="600">
+
 ## Installation
 
 Follow these steps on Ubuntu to set up a clean Python environment and run the installer script.
