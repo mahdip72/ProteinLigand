@@ -107,5 +107,15 @@ Comparison of our method’s best performance for each ligand with other availab
 If you use this code or the pretrained models, please cite the following paper:
 
 ```bibtex
-will be added soon
+@article {Pourmirzaei2025.09.28.679103,
+	author = {Pourmirzaei, Mahdi and Alqarghuli, Salhuldin and Chen, Kai and Pourmirzaei, Mohammadreza and Xu, Dong},
+	title = {Zero-Shot Protein-Ligand Binding Site Prediction from Protein Sequence and SMILES},
+	elocation-id = {2025.09.28.679103},
+	year = {2025},
+	doi = {10.1101/2025.09.28.679103},
+	publisher = {Cold Spring Harbor Laboratory},
+	URL = {https://www.biorxiv.org/content/early/2025/09/30/2025.09.28.679103},
+	eprint = {https://www.biorxiv.org/content/early/2025/09/30/2025.09.28.679103.full.pdf},
+	journal = {bioRxiv}
+}
 ```
