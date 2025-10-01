@@ -7,10 +7,10 @@ Accurate identification of protein–ligand binding residues is critical for mec
 ## Model Architecture
 
 ### Stage 2: Multi-Ligand Model with Embedding Table
-<img src="src/stage_2.png" alt="Stage 2 Architecture" width="600">
+<img src="src/stage_2.png" alt="Stage 2 Architecture" style="max-width: 600px; width: 100%; height: auto;">
 
 ### Stage 3: Zero-Shot Model with Chemical Language Model
-<img src="src/stage_3.png" alt="Stage 3 Architecture" width="600">
+<img src="src/stage_3.png" alt="Stage 3 Architecture" style="max-width: 600px; width: 100%; height: auto;">
 
 ## Installation
 
