@@ -1,0 +1,6 @@
+*.pdf
+*.png
+*.csv
+*.json
+qa/
+__pycache__/
