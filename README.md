@@ -33,7 +33,7 @@ source .venv/bin/activate
 chmod +x install.sh
 ./install.sh
 ```
-
+<!--
 ## Downloading Datasets
 
 We provide [datasets](https://mailmissouri-my.sharepoint.com/:f:/r/personal/mpngf_umsystem_edu/Documents/Github/Zero-Shot%20Protein-Ligand%20Binding%20Site/BioLip2?csf=1&web=1&e=sj0hsh) for the three evaluation stages described in the manuscript: overrepresented (ligands with >=100 samples), underrepresented (20-99 samples), and zero-shot (<20 samples). These datasets have been slightly modified for compatibility with the UNIMOL 2 chemical encoder (see manuscript Appendix for details). We also release the original unmodified datasets for future research.
@@ -41,7 +41,15 @@ We provide [datasets](https://mailmissouri-my.sharepoint.com/:f:/r/personal/mpng
 - Original unmodified datasets: [link](https://mailmissouri-my.sharepoint.com/:f:/r/personal/mpngf_umsystem_edu/Documents/Github/Zero-Shot%20Protein-Ligand%20Binding%20Site/BioLip2/Original%20datasets?csf=1&web=1&e=o0GNGA)
 
 - Modified datasets: [link](https://mailmissouri-my.sharepoint.com/:f:/g/personal/mpngf_umsystem_edu/EibmSj_qXixMn1TZB9vOzNMBzZveaY_P2XzGx-jlbgmqiw?e=ABKN12)
+-->
 
+## Downloading Datasets
+
+We provide datasets for the three evaluation stages described in the manuscript: overrepresented (ligands with >=100 samples), underrepresented (20–99 samples), and zero-shot (<20 samples). Both the original datasets and the modified datasets used for the revised Stage 3 evaluation are provided for reproducibility.
+
+The datasets are archived on Zenodo:
+
+**Dataset (Version 1.0):** https://doi.org/10.5281/zenodo.23042604
 
 ## Inference
 
