@@ -49,7 +49,7 @@ We provide datasets for the three evaluation stages described in the manuscript:
 
 The datasets are archived on Zenodo:
 
-**Dataset (Version 1.0):** https://doi.org/10.5281/zenodo.23042604
+**Dataset (Version 1.0):** https://zenodo.org/records/23042604
 
 ## Inference
 
