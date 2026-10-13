@@ -12,13 +12,14 @@ import torchmetrics
 from torch.amp import GradScaler, autocast
 import torch.nn.functional as F
 
-def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0, label_smoothing=0.0, binding_ratio=0.0, **kwargs):
+def calculate_loss(logits, labels, attention_mask, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0, label_smoothing=0.0, binding_ratio=0.0, **kwargs):
     """
     Calculates the loss using either weighted BCE or focal loss.
 
     Args:
         logits (Tensor): Logits output from the model.
         labels (Tensor): Ground truth labels.
+        attention_mask (Tensor): One for valid residues, zero for padding, shaped like labels.
         smoothed_pos_weight (float, optional): Smoothed positive class weight. Defaults to None.
         device (str): Device to use (e.g., 'cuda' or 'cpu').
         alpha (float): Weight smoothing parameter for dynamic class balancing. Defaults to 0.9.
@@ -30,6 +31,15 @@ def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alph
         Tensor: The calculated loss.
         float: Updated smoothed positive weight.
     """
+    if attention_mask.shape != labels.shape or logits.numel() != labels.numel():
+        raise ValueError("Logits, labels, and attention_mask must describe the same residue positions.")
+    valid_mask = attention_mask.bool().reshape(-1)
+    if not valid_mask.any():
+        raise ValueError("Cannot calculate loss for a batch with no valid residues.")
+    # Select before BCE so padded logits contribute neither loss nor gradients.
+    logits = logits.reshape(-1)[valid_mask]
+    labels = labels.reshape(-1)[valid_mask]
+
     # ========================
     # 1. Dynamic Positive Weight
     # ========================
@@ -50,8 +60,8 @@ def calculate_loss(logits, labels, smoothed_pos_weight=None, device='cuda', alph
         max_weight = kwargs.get("configs", {}).get("max_pos_weight", 1)
 
         smoothed_weight = alpha * smoothed_pos_weight + (1 - alpha) * current_pos_weight
-        smoothed_pos_weight = min(smoothed_weight, 1)
-        # smoothed_pos_weight = smoothed_weight
+        # smoothed_pos_weight = min(smoothed_weight, 1)
+        smoothed_pos_weight = smoothed_weight
         # Experimental: Cap the smoothed positive weight at a very small value
         # smoothed_pos_weight = max(smoothed_weight/weight_divisor, 1)
         # Experimental: Use binding rate to determine max positive weight
@@ -156,6 +166,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
             loss, smoothed_pos_weight = calculate_loss(
                 logits=logits,
                 labels=labels,
+                attention_mask=attention_mask,
                 smoothed_pos_weight=smoothed_pos_weight,
                 device=device,
                 alpha=alpha,
@@ -175,8 +186,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         running_loss += loss.item()
 
         predictions = torch.sigmoid(logits) > 0.5
-        accuracy.update(predictions.view(-1), labels.view(-1))
-        f1_score.update(predictions.view(-1), labels.view(-1))
+        valid_mask = attention_mask.bool().reshape(-1)
+        accuracy.update(predictions.reshape(-1)[valid_mask], labels.reshape(-1)[valid_mask])
+        f1_score.update(predictions.reshape(-1)[valid_mask], labels.reshape(-1)[valid_mask])
 
         if train_writer and (i + 1) % log_interval == 0:
             train_writer.add_scalar("Gradient_Norm", grad_norm, epoch * len(trainloader) + i)
@@ -238,6 +250,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha =
                 loss, smoothed_pos_weight = calculate_loss(
                     logits=logits,
                     labels=labels,
+                    attention_mask=attention_mask,
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
                     alpha=alpha,
@@ -250,8 +263,9 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha =
                 valid_loss += loss.item()
 
             predictions = torch.sigmoid(logits) > 0.5
-            accuracy.update(predictions.view(-1), labels.view(-1))
-            f1_score.update(predictions.view(-1), labels.view(-1))
+            valid_mask = attention_mask.bool().reshape(-1)
+            accuracy.update(predictions.reshape(-1)[valid_mask], labels.reshape(-1)[valid_mask])
+            f1_score.update(predictions.reshape(-1)[valid_mask], labels.reshape(-1)[valid_mask])
 
     avg_valid_loss = valid_loss / len(testloader)
     valid_acc = accuracy.compute().cpu().item()
@@ -316,6 +330,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha = 0.
                 loss, smoothed_pos_weight = calculate_loss(
                     logits=logits,
                     labels=labels,
+                    attention_mask=attention_mask,
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
                     alpha=alpha,
@@ -328,9 +343,11 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha = 0.
                 test_loss += loss.item()
 
             # Convert logits to probabilities
-            probabilities = torch.sigmoid(logits).cpu().numpy().flatten()
+            valid_mask = attention_mask.bool().reshape(-1)
+            probabilities = torch.sigmoid(logits.reshape(-1)[valid_mask]).float().cpu().numpy()
             predictions = (probabilities > 0.5).astype(int)  # Convert to binary labels
-            labels_flat = labels.cpu().numpy().flatten()
+            valid_labels = labels.reshape(-1)[valid_mask]
+            labels_flat = valid_labels.cpu().numpy()
 
             # Store incorrect prediction confidence scores only if log_confidences is True
             if log_confidences:
@@ -343,14 +360,15 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha = 0.
                             false_negative_confidences.append(prob)
 
             # Update Metrics
-            accuracy.update(torch.tensor(predictions), torch.tensor(labels.cpu().numpy().flatten()))
-            f1_score.update(torch.tensor(predictions), torch.tensor(labels.cpu().numpy().flatten()))
-            precision.update(torch.tensor(predictions), torch.tensor(labels.cpu().numpy().flatten()))
-            recall.update(torch.tensor(predictions), torch.tensor(labels.cpu().numpy().flatten()))
+            valid_predictions = torch.as_tensor(predictions, device=device)
+            accuracy.update(valid_predictions, valid_labels)
+            f1_score.update(valid_predictions, valid_labels)
+            precision.update(valid_predictions, valid_labels)
+            recall.update(valid_predictions, valid_labels)
 
             # Collect predictions and labels for further analysis
             all_predictions.extend(predictions)
-            all_labels.extend(labels.cpu().numpy().flatten())
+            all_labels.extend(labels_flat)
 
     # Compute Metrics
     avg_test_loss = test_loss / len(testloader)

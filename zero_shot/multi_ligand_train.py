@@ -17,7 +17,7 @@ from collections import defaultdict
 from sklearn.metrics import f1_score as sk_f1
 import copy
 
-def calculate_loss(logits, labels, ligands = None, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0,
+def calculate_loss(logits, labels, attention_mask, ligands = None, smoothed_pos_weight=None, device='cuda', alpha=0.9, use_focal_loss=False, gamma=2.0,
                    label_smoothing=0.0, **kwargs):
     """
     Calculates the loss using either weighted BCE or focal loss.
@@ -25,6 +25,7 @@ def calculate_loss(logits, labels, ligands = None, smoothed_pos_weight=None, dev
     Args:
         logits (Tensor): Logits output from the model.
         labels (Tensor): Ground truth labels.
+        attention_mask (Tensor): One for valid residues, zero for padding, shaped like labels.
         ligands (Tensor): Names of the ligands in the batch.
         smoothed_pos_weight (float, optional): Smoothed positive class weight. Defaults to None.
         device (str): Device to use (e.g., 'cuda' or 'cpu').
@@ -39,6 +40,11 @@ def calculate_loss(logits, labels, ligands = None, smoothed_pos_weight=None, dev
         float: Updated smoothed positive weight.
     """
     configs = kwargs.get('configs', None)
+    if attention_mask.shape != labels.shape or logits.numel() != labels.numel():
+        raise ValueError("Logits, labels, and attention_mask must describe the same residue positions.")
+    valid_mask = attention_mask.bool().reshape(-1)
+    if not valid_mask.any():
+        raise ValueError("Cannot calculate loss for a batch with no valid residues.")
     # ========================
     # 1. Dynamic Positive Weight
     # ========================
@@ -95,12 +101,11 @@ def calculate_loss(logits, labels, ligands = None, smoothed_pos_weight=None, dev
     # 3. Compute Weighted BCE
     # ========================
     bce_loss = F.binary_cross_entropy_with_logits(
-        logits.view(-1),
-        smoothed_labels.view(-1),
+        logits.reshape(-1)[valid_mask],
+        smoothed_labels.reshape(-1)[valid_mask],
         # pos_weight=pos_weight_tensor,
         reduction='none'
     )
-    bce_loss = bce_loss.view_as(logits)
 
     # ========================
     # 4. Optional Dataset Weighting and Binding-Ratio Weighting
@@ -135,6 +140,9 @@ def calculate_loss(logits, labels, ligands = None, smoothed_pos_weight=None, dev
         weight_matrix = weight_matrix * pos_token_weights  # final shape: [B, L, 1]
     else:
         weight_matrix = torch.ones_like(logits)
+
+    # Keep ligand weights aligned with the same valid residues as the BCE terms.
+    weight_matrix = weight_matrix.reshape(-1)[valid_mask]
 
     # ========================
     # 5. Optional Focal Loss
@@ -236,6 +244,7 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
             loss, smoothed_pos_weight = calculate_loss(
                 logits=logits,
                 labels=labels,
+                attention_mask=attention_mask,
                 ligands=ligand_names,
                 smoothed_pos_weight=smoothed_pos_weight,
                 device=device,
@@ -259,8 +268,9 @@ def training_loop(model, trainloader, optimizer, epoch, device, scaler, schedule
         predictions = predictions.squeeze(-1)
         batch_size, seq_len = predictions.shape
 
-        flat_preds = predictions.view(-1)
-        flat_labels = labels.view(-1)
+        valid_mask = attention_mask.bool().reshape(-1)
+        flat_preds = predictions.reshape(-1)[valid_mask]
+        flat_labels = labels.reshape(-1)[valid_mask]
         accuracy.update(flat_preds, flat_labels)
         f1_score.update(flat_preds, flat_labels)
         precision.update(flat_preds, flat_labels)
@@ -393,6 +403,7 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
                 loss, smoothed_pos_weight = calculate_loss(
                     logits=logits,
                     labels=labels,
+                    attention_mask=attention_mask,
                     ligands=ligand_names,
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
@@ -409,8 +420,9 @@ def validation_loop(model, testloader, epoch, device, valid_writer=None, alpha=0
             predictions = predictions.squeeze(-1)
             batch_size, seq_len = predictions.shape
 
-            flat_preds = predictions.view(-1)
-            flat_labels = labels.view(-1)
+            valid_mask = attention_mask.bool().reshape(-1)
+            flat_preds = predictions.reshape(-1)[valid_mask]
+            flat_labels = labels.reshape(-1)[valid_mask]
             accuracy.update(flat_preds, flat_labels)
             f1_score.update(flat_preds, flat_labels)
             precision.update(flat_preds, flat_labels)
@@ -537,6 +549,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
                 loss, smoothed_pos_weight = calculate_loss(
                     logits=logits,
                     labels=labels,
+                    attention_mask=attention_mask,
                     ligands=ligand_names,
                     smoothed_pos_weight=smoothed_pos_weight,
                     device=device,
@@ -562,6 +575,13 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
                         true = labels_flat[b * seq_len + t]
                         ligand_preds_labels[ligand].append((pred, true))
 
+            # Global metrics and confidence summaries use the same mask as per-ligand metrics.
+            valid_mask = attention_mask.bool().reshape(-1)
+            valid_numpy_mask = valid_mask.cpu().numpy()
+            probabilities = probabilities[valid_numpy_mask]
+            predictions = predictions[valid_numpy_mask]
+            labels_flat = labels_flat[valid_numpy_mask]
+
             # Store incorrect prediction confidence scores only if log_confidences is True
             if log_confidences:
                 for prob, pred, true_label in zip(probabilities, predictions, labels_flat):
@@ -573,7 +593,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
                             false_negative_confidences.append(prob)
 
             flat_preds = torch.tensor(predictions, device=device).view(-1)
-            flat_labels = labels.view(-1)
+            flat_labels = labels.reshape(-1)[valid_mask]
             accuracy.update(flat_preds, flat_labels)
             f1_score.update(flat_preds, flat_labels)
             precision.update(flat_preds, flat_labels)
@@ -584,7 +604,7 @@ def evaluation_loop(model, testloader, device, log_confidences=False, alpha=0.9,
 
             # Collect predictions and labels for further analysis
             all_predictions.extend(predictions)
-            all_labels.extend(labels.float().cpu().numpy().flatten())
+            all_labels.extend(labels_flat)
 
     # Compute Metrics
     avg_test_loss = test_loss / len(testloader)
