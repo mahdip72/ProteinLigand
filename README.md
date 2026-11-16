@@ -2,20 +2,24 @@
 
 ## Abstract
 
-Accurate identification of protein–ligand binding residues is critical for mechanistic biology and drug discovery, yet performance varies widely across ligand families and data regimes. We present a systematic evaluation framework that stratifies ligands into three settings, overrepresented (many examples), underrepresented (tens of examples), and zero-shot (unseen at training). We developed a three-stage, sequence-based modeling suite that progressively adds ligand conditioning and zero-shot capability, and used an evaluation framework to assess the suite. Stage 1 trains per-ligand predictors using a pretrained protein language model (PLM). Stage 2 introduces ligand-aware conditioning via an embedding table, enabling a single multi-ligand model. Stage 3 replaces the table with a pretrained chemical language model (CLM) operating on SMILES, enabling zero-shot generalization. We show Stage 2 improves Macro F1 on the overrepresented test set from 0.4769 (Stage 1) to 0.5832 and outperforms sequence- and structure-based baselines. Stage 3 attains zero-shot performance (F1 = 0.3109) on 5612 previously unseen ligands while remaining competitive on represented ligands. Ablations across five PLM scales and multiple CLMs reveal larger PLM backbones consistently increase Macro F1 across all regimes, whereas scaling the CLM yields modest or inconsistent gains, which need further investigation. 
+Accurate identification of protein-ligand binding sites is critical for mechanistic biology and drug discovery, yet predictive performance varies substantially across ligand families and data-availability regimes. We present a systematic ligand-aware benchmark and evaluation framework for residue-level binding-site prediction across three settings: overrepresented ligands with abundant examples, underrepresented ligands with limited examples, and zero-shot ligands unseen during training.
+
+Using a BioLiP2-derived dataset with ligand-specific sequence clustering, we evaluate a progressive three-stage sequence-based modeling suite designed to study these regimes. Stage 1 trains ligand-specific predictors using a pretrained protein language model (PLM). Stage 2 introduces ligand conditioning through learned embeddings, enabling a single multi-ligand model. Stage 3 replaces these embeddings with representations from a pretrained chemical language model (CLM) operating on SMILES, enabling prediction for previously unseen ligands. In the original three-stage comparison, Stage 2 achieved a higher ligand-macro F1 than Stage 1 on the overrepresented test set (0.5832 versus 0.4769), although the comparison simultaneously changes predictor architecture, ligand conditioning, and the training regime. Stage 2 also outperformed several sequence- and structure-based baselines. Stage 3 achieves a pooled residue-level F1 of 0.3109 and a ligand-macro F1 of 0.2338 on previously unseen ligands, while remaining competitive on represented ligands.
+
+Control experiments using constant, mismatched, and scrambled SMILES inputs reduce performance across all three test regimes, providing evidence that the model uses information associated with the supplied ligand input rather than relying solely on generic protein binding-site propensity. Ablations across five PLM scales and multiple CLMs further show that increasing PLM scale generally improves performance, although the trend is not strictly monotonic, whereas CLM scaling produces smaller and less consistent gains. Overall, this study provides a systematic benchmark for quantifying the effect of ligand data availability on residue-level binding-site prediction and for evaluating generalization to previously unseen ligands.
 
 ## News
 - 🗓️ **12 Nov 2026** — 🎉 Our paper was accepted to *Bioinformatics* and is now [available online](https://doi.org/10.1093/bioinformatics/btag826)!
 - 🗓️ **25 Sept 2025** — 🎉 Our paper was accepted to the NeurIPS 2025 AI4Science workshop!
-- 🗓️ **30 Sept 2025** — Our preprint has been published in [bioRxiv](https://www.biorxiv.org/content/10.1101/2025.09.28.679103v1).
+- 🗓️ **30 Sept 2025** — Our preprint was published on bioRxiv. [Read the revised version](https://www.biorxiv.org/content/10.1101/2025.09.28.679103v2).
 
 ## Model Architecture
 
 ### Stage 2: Multi-Ligand Model with Embedding Table
-<img src="src/stage_2.png" alt="Stage 2 Architecture" style="max-width: 600px; width: 100%; height: auto;">
+<img src="src/stage_2.svg" alt="Stage 2 architecture with a learned ligand embedding table" width="900">
 
 ### Stage 3: Zero-Shot Model with Chemical Language Model
-<img src="src/stage_3.png" alt="Stage 3 Architecture" style="max-width: 600px; width: 100%; height: auto;">
+<img src="src/stage_3.svg" alt="Stage 3 architecture with a chemical encoder and projector" width="900">
 
 ## Installation
 
