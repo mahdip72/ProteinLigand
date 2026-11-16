@@ -5,6 +5,7 @@
 Accurate identification of protein–ligand binding residues is critical for mechanistic biology and drug discovery, yet performance varies widely across ligand families and data regimes. We present a systematic evaluation framework that stratifies ligands into three settings, overrepresented (many examples), underrepresented (tens of examples), and zero-shot (unseen at training). We developed a three-stage, sequence-based modeling suite that progressively adds ligand conditioning and zero-shot capability, and used an evaluation framework to assess the suite. Stage 1 trains per-ligand predictors using a pretrained protein language model (PLM). Stage 2 introduces ligand-aware conditioning via an embedding table, enabling a single multi-ligand model. Stage 3 replaces the table with a pretrained chemical language model (CLM) operating on SMILES, enabling zero-shot generalization. We show Stage 2 improves Macro F1 on the overrepresented test set from 0.4769 (Stage 1) to 0.5832 and outperforms sequence- and structure-based baselines. Stage 3 attains zero-shot performance (F1 = 0.3109) on 5612 previously unseen ligands while remaining competitive on represented ligands. Ablations across five PLM scales and multiple CLMs reveal larger PLM backbones consistently increase Macro F1 across all regimes, whereas scaling the CLM yields modest or inconsistent gains, which need further investigation. 
 
 ## News
+- 🗓️ **12 Nov 2026** — 🎉 Our paper was accepted to *Bioinformatics* and is now [available online](https://doi.org/10.1093/bioinformatics/btag826)!
 - 🗓️ **25 Sept 2025** — 🎉 Our paper was accepted to the NeurIPS 2025 AI4Science workshop!
 - 🗓️ **30 Sept 2025** — Our preprint has been published in [bioRxiv](https://www.biorxiv.org/content/10.1101/2025.09.28.679103v1).
 
@@ -124,16 +125,16 @@ Comparison of our method’s best performance for each ligand with other availab
 
 ## 📜 Citation
 
-If you use this code or the pretrained models, please cite the following paper:
+If you use this code or the pretrained models, please cite our paper in *Bioinformatics*:
 
 ```bibtex
-@article {Pourmirzaei2025.09.28.679103,
+@article{Pourmirzaei2026,
 	author = {Pourmirzaei, Mahdi and Alqarghuli, Salhuldin and Chen, Kai and Pourmirzaei, Mohammadreza and Xu, Dong},
-	title = {Zero-Shot Protein-Ligand Binding Site Prediction from Protein Sequence and SMILES},
-	year = {2025},
-	doi = {10.1101/2025.09.28.679103},
-	publisher = {Cold Spring Harbor Laboratory},
-	URL = {https://www.biorxiv.org/content/early/2025/09/30/2025.09.28.679103},
-	journal = {bioRxiv}
+	title = {Zero-Shot Protein-Ligand Binding Site Prediction from Protein Sequence and {SMILES}},
+	journal = {Bioinformatics},
+	year = {2026},
+	pages = {btag826},
+	doi = {10.1093/bioinformatics/btag826},
+	url = {https://doi.org/10.1093/bioinformatics/btag826}
 }
 ```
